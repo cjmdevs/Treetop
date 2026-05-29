@@ -3,3 +3,4 @@ server/data/
 *.db
 .env
 dist/
+server/data/*.db

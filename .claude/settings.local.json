@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:writing-plans:*)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Skill(superpowers:subagent-driven-development:*)",
+      "Bash(node -e \"const {migrate} = require\\('./db/migrate'\\); migrate\\(\\); console.log\\('migration ok'\\);\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const db = require\\('./db/database'\\); console.log\\('codes:', db.prepare\\('SELECT count\\(*\\) as n FROM service_codes'\\).get\\(\\).n\\); console.log\\('entries:', db.prepare\\('SELECT count\\(*\\) as n FROM time_entries'\\).get\\(\\).n\\);\")",
+      "Bash(node -e \"const db = require\\('./db/database'\\); console.log\\(db.prepare\\(\\\\\"SELECT code FROM service_codes WHERE code IN \\('TAX','BKP','AUD','MTG','REV'\\)\\\\\"\\).all\\(\\)\\)\")",
+      "Bash(node -e \"const app = require\\('./app'\\); console.log\\('app loaded ok'\\)\")",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Skill(superpowers:finishing-a-development-branch:*)",
+      "Bash(npm test *)",
+      "Bash(node -e \"require\\('./app'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const d = fs.readFileSync\\('src/pages/Dashboard.jsx','utf8'\\); console.log\\('has AdminAlerts:', d.includes\\('AdminAlerts'\\)\\); console.log\\('has timeSummaryApi:', d.includes\\('timeSummaryApi'\\)\\); console.log\\('has useAuth:', d.includes\\('useAuth'\\)\\); console.log\\('has role===admin:', d.includes\\(\\\\\"role === 'admin'\\\\\"\\)\\);\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const s = fs.readFileSync\\('src/pages/Settings.jsx','utf8'\\); console.log\\('has User Rates Overview:', s.includes\\('User Rates Overview'\\)\\); console.log\\('has tab===rates loadUsers:', s.includes\\(\\\\\"tab === 'rates'\\\\\"\\) && s.includes\\('loadUsers'\\)\\); console.log\\('has Edit Rate btn:', s.includes\\('Edit Rate'\\)\\);\")",
+      "Bash(npx vite *)",
+      "Bash(node db/seed.js)",
+      "Bash(node -e ' *)",
+      "Bash(npx --yes acorn --ecma2022 --module src/pages/Contacts.jsx)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(node -e \"const { BuildingOffice2Icon } = require\\('C:/Users/carso/Claude Projects/mgrcpas/client/node_modules/@heroicons/react/24/outline/index.js'\\); console.log\\(typeof BuildingOffice2Icon\\);\")",
+      "mcp__plugin_claude-video-vision_claude-video-vision__video_analyze"
+    ]
+  }
+}

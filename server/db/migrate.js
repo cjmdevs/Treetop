@@ -123,6 +123,75 @@ function migrate() {
     `);
   }
 
+  // projects table (added 2026-05-29)
+  const projectsTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").get();
+  if (!projectsTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        engagement_id INTEGER NOT NULL,
+        client_name TEXT NOT NULL,
+        project_type TEXT,
+        entity_type TEXT,
+        period_label TEXT,
+        fiscal_year_end TEXT,
+        status TEXT NOT NULL DEFAULT 'Not Started',
+        original_due TEXT,
+        current_due TEXT,
+        start_date TEXT,
+        delivered_date TEXT,
+        completed_date TEXT,
+        extended INTEGER NOT NULL DEFAULT 0,
+        client_number TEXT,
+        engagement_number TEXT,
+        primary_partner TEXT,
+        manager TEXT,
+        preparer TEXT,
+        reviewer TEXT,
+        in_charge TEXT,
+        budgeted_hours REAL,
+        budgeted_amount REAL,
+        priority TEXT NOT NULL DEFAULT 'Normal',
+        prior_project_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+        FOREIGN KEY (prior_project_id) REFERENCES projects(id) ON DELETE SET NULL
+      )
+    `);
+  }
+
+  // project_id on time_entries (added 2026-05-29)
+  const teCols2 = db.prepare('PRAGMA table_info(time_entries)').all().map(c => c.name);
+  if (!teCols2.includes('project_id'))
+    db.exec('ALTER TABLE time_entries ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
+
+  // project_id on billing_records (added 2026-05-29)
+  const brCols = db.prepare('PRAGMA table_info(billing_records)').all().map(c => c.name);
+  if (!brCols.includes('project_id'))
+    db.exec('ALTER TABLE billing_records ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
+
+  // project_id on subtasks (added 2026-05-29)
+  const stCols = db.prepare('PRAGMA table_info(subtasks)').all().map(c => c.name);
+  if (!stCols.includes('project_id'))
+    db.exec('ALTER TABLE subtasks ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE');
+
+  // user_preferences table (added 2026-05-29)
+  const upTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_preferences'").get();
+  if (!upTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        pref_key TEXT NOT NULL,
+        pref_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, pref_key),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+  }
+
   // pay_period_user_status table (added 2026-05-21)
   const ppusTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pay_period_user_status'").get();
   if (!ppusTable) {

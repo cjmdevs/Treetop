@@ -1,25 +1,32 @@
 import { useState, useMemo } from 'react'
 
-export function useSortable(data, defaultKey = null, defaultDir = 'asc') {
-  const [sort, setSort] = useState({ key: defaultKey, dir: defaultDir })
+export function useSortable(data, defaultKey = '', defaultDir = 'asc') {
+  const [sortKey, setSortKey] = useState(defaultKey)
+  const [sortDir, setSortDir] = useState(defaultDir)
 
-  const sorted = useMemo(() => {
-    if (!sort.key) return data
-    return [...data].sort((a, b) => {
-      const av = a[sort.key] ?? ''
-      const bv = b[sort.key] ?? ''
-      const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv))
-      return sort.dir === 'asc' ? cmp : -cmp
-    })
-  }, [data, sort])
-
-  const toggle = key =>
-    setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))
-
-  const SortIcon = ({ colKey }) => {
-    if (sort.key !== colKey) return <span className="text-gray-300 ml-1">↕</span>
-    return <span className="text-accent ml-1">{sort.dir === 'asc' ? '↑' : '↓'}</span>
+  const toggle = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
   }
 
-  return { sorted, toggle, sort, SortIcon }
+  const sorted = useMemo(() => {
+    if (!sortKey) return data
+    return [...data].sort((a, b) => {
+      const av = a[sortKey] ?? ''
+      const bv = b[sortKey] ?? ''
+      const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [data, sortKey, sortDir])
+
+  function SortIcon({ colKey }) {
+    if (sortKey !== colKey) return <span className="ml-1 opacity-30 text-[10px]">↕</span>
+    return <span className="ml-1 text-accent text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
+  }
+
+  return { sorted, toggle, SortIcon, sortKey, sortDir, setSortKey, setSortDir }
 }

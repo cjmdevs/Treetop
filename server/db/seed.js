@@ -31,6 +31,7 @@ db.exec(`
   DELETE FROM contact_affiliates;
   DELETE FROM contacts;
   DELETE FROM contact_client_types;
+  DELETE FROM projects;
 `);
 db.pragma('foreign_keys = ON');
 
@@ -103,38 +104,103 @@ const engagements = [
 
 const ids = engagements.map(e => insertEngagement.run(...e).lastInsertRowid);
 
+// ── Projects ──────────────────────────────────────────────────────────────────
+const insertProject = db.prepare(`
+  INSERT INTO projects (
+    engagement_id, client_name, project_type, entity_type, period_label,
+    status, original_due, current_due, start_date, completed_date, delivered_date,
+    extended, client_number, engagement_number,
+    primary_partner, manager, preparer, reviewer, in_charge,
+    budgeted_hours, budgeted_amount, priority, prior_project_id
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+`);
+
+// Apex 2024 — prior year, delivered
+const apexPrior = insertProject.run(
+  ids[0], 'Apex Industries LLC', '1120', 'LLC', '2024',
+  'Delivered', '2025-04-15', '2025-10-15', '2025-01-15', '2025-10-10', '2025-10-12',
+  1, 'APEX001', '001',
+  'Marcus Maurer', 'Sofia Graf', 'Diego Rivera', 'Marcus Maurer', 'Carson',
+  20, 5000, 'High', null
+).lastInsertRowid;
+
+// Apex 2025 — current year, extension filed; prior_project_id → 2024 project
+const apexCurrent = insertProject.run(
+  ids[0], 'Apex Industries LLC', '1120', 'LLC', '2025',
+  'Extension Filed', '2026-04-15', '2026-10-15', '2026-02-15', null, null,
+  1, 'APEX001', '001',
+  'Marcus Maurer', 'Sofia Graf', 'Diego Rivera', 'Marcus Maurer', 'Carson',
+  20, 5000, 'High', apexPrior
+).lastInsertRowid;
+
+// Chen Family Trust 2025
+const chenCurrent = insertProject.run(
+  ids[1], 'Chen Family Trust', '1041', 'Trust', '2025',
+  'Not Started', '2026-04-15', '2026-04-15', null, null, null,
+  0, 'CHFT001', '001',
+  'Sofia Graf', null, 'Diego Rivera', 'Sofia Graf', null,
+  12, 2400, 'Normal', null
+).lastInsertRowid;
+
+// Riverside Dental Group — May 2026 bookkeeping
+const riversideCurrent = insertProject.run(
+  ids[2], 'Riverside Dental Group', 'Bookkeeping', 'LLC', 'May 2026',
+  'In Progress', '2026-05-31', '2026-05-31', '2026-05-01', null, null,
+  0, 'RIVD001', '001',
+  'Marcus Maurer', 'Sofia Graf', 'Diego Rivera', null, null,
+  8, 1200, 'Normal', null
+).lastInsertRowid;
+
+// Pacific Ventures Inc — 2025 audit
+const pacificCurrent = insertProject.run(
+  ids[3], 'Pacific Ventures Inc', 'Audit', 'C-Corp', '2025',
+  'In Review', '2026-06-30', '2026-06-30', '2026-03-01', null, null,
+  0, 'PACV001', '001',
+  'Marcus Maurer', null, null, 'Marcus Maurer', null,
+  40, 12000, 'High', null
+).lastInsertRowid;
+
+// Santos & Associates — 2026 advisory
+const santosCurrent = insertProject.run(
+  ids[4], 'Santos & Associates', 'Advisory', 'LLC', '2026',
+  'Not Started', '2026-05-15', '2026-05-15', null, null, null,
+  0, 'SANT001', '001',
+  'Sofia Graf', 'Diego Rivera', null, null, null,
+  6, 1800, 'Low', null
+).lastInsertRowid;
+
 // ── Time Entries — all in P10 (May 11–24, 2026) ───────────────────────────────
 const p10 = periodIds[10]; // the ID for pay period 10
 
 const insertTimeEntry = db.prepare(`
   INSERT INTO time_entries
-    (engagement_id, staff_member, user_id, date, hours, billing_rate, notes,
+    (engagement_id, project_id, staff_member, user_id, date, hours, billing_rate, notes,
      billable, service_code, pay_period_id, internal_memo, entry_status)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'draft')
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'draft')
 `);
 
-const te = (engId, name, date, hrs, rate, notes, billable, code) =>
-  insertTimeEntry.run(engId, name, userIds[name], date, hrs, rate, notes, billable, code, p10);
+const te = (engId, projId, name, date, hrs, rate, notes, billable, code) =>
+  insertTimeEntry.run(engId, projId, name, userIds[name], date, hrs, rate, notes, billable, code, p10);
 
-te(ids[0], 'Marcus Maurer', '2026-05-12', 3.5, 250, 'Reviewed prior year return',   1, 'TAX-PREP');
-te(ids[0], 'Marcus Maurer', '2026-05-13', 2.0, 250, 'Depreciation schedule prep',   1, 'TAX-PREP');
-te(ids[0], 'Marcus Maurer', '2026-05-14', 4.5, 250, 'Tax return preparation',       1, 'TAX-PREP');
-te(ids[0], 'Marcus Maurer', '2026-05-15', 8.0, 250, 'Final review and client call', 1, 'TAX-REVIEW');
-te(ids[1], 'Sofia Graf',    '2026-05-14', 1.5, 200, 'Initial client call',          1, 'ADMIN-COMM');
-te(ids[2], 'Diego Rivera',  '2026-05-13', 4.0, 150, 'Q1 bank reconciliation',       1, 'BOOKKEEPING');
-te(ids[2], 'Diego Rivera',  '2026-05-20', 3.0, 150, 'April categorization',         1, 'BOOKKEEPING');
-te(ids[3], 'Marcus Maurer', '2026-05-15', 5.0, 300, 'Audit fieldwork day 1',        1, 'AUDIT-FIELD');
-te(ids[3], 'Marcus Maurer', '2026-05-16', 6.0, 300, 'Audit fieldwork day 2',        1, 'AUDIT-FIELD');
+te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-12', 3.5, 250, 'Reviewed prior year return',   1, 'TAX-PREP');
+te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-13', 2.0, 250, 'Depreciation schedule prep',   1, 'TAX-PREP');
+te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-14', 4.5, 250, 'Tax return preparation',       1, 'TAX-PREP');
+te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-15', 8.0, 250, 'Final review and client call', 1, 'TAX-REVIEW');
+te(ids[1], chenCurrent,     'Sofia Graf',    '2026-05-14', 1.5, 200, 'Initial client call',          1, 'ADMIN-COMM');
+te(ids[2], riversideCurrent,'Diego Rivera',  '2026-05-13', 4.0, 150, 'Q1 bank reconciliation',       1, 'BOOKKEEPING');
+te(ids[2], riversideCurrent,'Diego Rivera',  '2026-05-20', 3.0, 150, 'April categorization',         1, 'BOOKKEEPING');
+te(ids[3], pacificCurrent,  'Marcus Maurer', '2026-05-15', 5.0, 300, 'Audit fieldwork day 1',        1, 'AUDIT-FIELD');
+te(ids[3], pacificCurrent,  'Marcus Maurer', '2026-05-16', 6.0, 300, 'Audit fieldwork day 2',        1, 'AUDIT-FIELD');
 
 // ── Billing Records ───────────────────────────────────────────────────────────
 const insertBilling = db.prepare(`
-  INSERT INTO billing_records (engagement_id, invoice_amount, status, invoice_date, notes)
-  VALUES (?, ?, ?, ?, ?)
+  INSERT INTO billing_records (engagement_id, project_id, invoice_amount, status, invoice_date, notes)
+  VALUES (?, ?, ?, ?, ?, ?)
 `);
 
-insertBilling.run(ids[0], 2500, 'Unbilled',  null,         'Partial billing for prep work');
-insertBilling.run(ids[2],  600, 'Invoiced',  '2026-05-01', 'April bookkeeping');
-insertBilling.run(ids[3], 4500, 'Paid',      '2026-04-15', 'Audit deposit');
+insertBilling.run(ids[0], apexCurrent,     2500, 'Unbilled',  null,         'Partial billing for prep work');
+insertBilling.run(ids[2], riversideCurrent,  600, 'Invoiced',  '2026-05-01', 'April bookkeeping');
+insertBilling.run(ids[3], pacificCurrent,   4500, 'Paid',      '2026-04-15', 'Audit deposit');
 
 // ── Service Codes ─────────────────────────────────────────────────────────────
 const insertCode = db.prepare(`
@@ -205,21 +271,22 @@ const t3 = insertTemplate.run('Audit Full', 'Audit', 'High').lastInsertRowid;
 
 // ── Subtasks ──────────────────────────────────────────────────────────────────
 const insertSubtask = db.prepare(`
-  INSERT INTO subtasks (engagement_id, title, assigned_staff, status, sort_order)
-  VALUES (?, ?, ?, ?, ?)
+  INSERT INTO subtasks (engagement_id, project_id, title, assigned_staff, status, sort_order)
+  VALUES (?, ?, ?, ?, ?, ?)
 `);
 
 [
-  [ids[0], 'Gather client documents',       'Marcus Maurer', 'Complete',    0],
-  [ids[0], 'Prior year comparison review',  'Marcus Maurer', 'Complete',    1],
-  [ids[0], 'Prepare tax return',            'Marcus Maurer', 'In Progress', 2],
-  [ids[0], 'Partner review',               'Marcus Maurer', 'Not Started', 3],
-  [ids[0], 'Client review meeting',         'Marcus Maurer', 'Not Started', 4],
-  [ids[0], 'E-file and confirm acceptance', 'Marcus Maurer', 'Not Started', 5],
-  [ids[1], 'Gather client documents',       'Sofia Graf',    'Not Started', 0],
-  [ids[1], 'Prior year comparison review',  'Sofia Graf',    'Not Started', 1],
-  [ids[1], 'Prepare tax return',            'Sofia Graf',    'Not Started', 2],
-].forEach(args => insertSubtask.run(...args));
+  [ids[0], apexCurrent, 'Gather client documents',       'Marcus Maurer', 'Complete',    0],
+  [ids[0], apexCurrent, 'Prior year comparison review',  'Marcus Maurer', 'Complete',    1],
+  [ids[0], apexCurrent, 'Prepare tax return',            'Marcus Maurer', 'In Progress', 2],
+  [ids[0], apexCurrent, 'Partner review',                'Marcus Maurer', 'Not Started', 3],
+  [ids[0], apexCurrent, 'Client review meeting',         'Marcus Maurer', 'Not Started', 4],
+  [ids[0], apexCurrent, 'E-file and confirm acceptance', 'Marcus Maurer', 'Not Started', 5],
+  [ids[1], chenCurrent, 'Gather client documents',       'Sofia Graf',    'Not Started', 0],
+  [ids[1], chenCurrent, 'Prior year comparison review',  'Sofia Graf',    'Not Started', 1],
+  [ids[1], chenCurrent, 'Prepare tax return',            'Sofia Graf',    'Not Started', 2],
+].forEach(([engId, projId, title, staff, status, order]) =>
+  insertSubtask.run(engId, projId, title, staff, status, order));
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
 const insertNote = db.prepare(`
@@ -533,7 +600,7 @@ insertActivity.run(cIds['thompson'], userIds['Marcus Maurer'], 'note',
   'Met Robert and Sarah at Modesto Chamber of Commerce mixer. They are looking to switch CPA firms.',
   '2026-03-15 16:45:00');
 
-console.log('Database seeded: 5 engagements, 9 time entries (P10/2026), 3 billing records,');
-console.log('  18 service codes, 3 templates, 9 subtasks, 3 notes, 1 payment,');
-console.log('  3 automation rules, 11 tax deadlines, 26 pay periods (2026), 3 staff rates, 4 users,');
-console.log('  11 client types, 10 contacts with client_type, staff assignments, tags, affiliates, and activity.');
+console.log('Database seeded: 5 engagements, 6 projects (Apex: 2024 Delivered + 2025 Extension Filed; others: 1 each),');
+console.log('  9 time entries (P10/2026), 3 billing records, 18 service codes, 3 templates, 9 subtasks, 3 notes,');
+console.log('  1 payment, 3 automation rules, 11 tax deadlines, 26 pay periods (2026), 3 staff rates, 4 users,');
+console.log('  11 client types, 10 contacts with staff assignments, tags, affiliates, and activity.');

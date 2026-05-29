@@ -19,9 +19,42 @@ function initializeDatabase() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      engagement_id INTEGER NOT NULL,
+      client_name TEXT NOT NULL,
+      project_type TEXT,
+      entity_type TEXT,
+      period_label TEXT,
+      fiscal_year_end TEXT,
+      status TEXT NOT NULL DEFAULT 'Not Started',
+      original_due TEXT,
+      current_due TEXT,
+      start_date TEXT,
+      delivered_date TEXT,
+      completed_date TEXT,
+      extended INTEGER NOT NULL DEFAULT 0,
+      client_number TEXT,
+      engagement_number TEXT,
+      primary_partner TEXT,
+      manager TEXT,
+      preparer TEXT,
+      reviewer TEXT,
+      in_charge TEXT,
+      budgeted_hours REAL,
+      budgeted_amount REAL,
+      priority TEXT NOT NULL DEFAULT 'Normal',
+      prior_project_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+      FOREIGN KEY (prior_project_id) REFERENCES projects(id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS time_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       engagement_id INTEGER NOT NULL,
+      project_id INTEGER,
       staff_member TEXT NOT NULL,
       date TEXT NOT NULL,
       hours REAL NOT NULL,
@@ -35,23 +68,27 @@ function initializeDatabase() {
       user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS billing_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       engagement_id INTEGER NOT NULL,
+      project_id INTEGER,
       invoice_amount REAL NOT NULL,
       status TEXT NOT NULL DEFAULT 'Unbilled',
       invoice_date TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE
+      FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS subtasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       engagement_id INTEGER NOT NULL,
+      project_id INTEGER,
       title TEXT NOT NULL,
       assigned_staff TEXT,
       status TEXT NOT NULL DEFAULT 'Not Started',
@@ -60,7 +97,8 @@ function initializeDatabase() {
       notes TEXT,
       completed_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE
+      FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS workflow_templates (
@@ -349,6 +387,16 @@ function initializeDatabase() {
       label TEXT NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      pref_key TEXT NOT NULL,
+      pref_value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, pref_key),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
 }

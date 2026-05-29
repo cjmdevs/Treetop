@@ -42,5 +42,7 @@ app.use('/api/time-summary', require('./routes/timeSummary'));
 app.use('/api/releases',     require('./routes/releases'));
 app.use('/api/contacts',              require('./routes/contacts'));
 app.use('/api/contact-client-types', require('./routes/contactClientTypes'));
+app.use('/api/projects',             require('./routes/projects'));
+app.use('/api/user-preferences',    require('./routes/userPreferences'));
 
 module.exports = app;

@@ -11,11 +11,11 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { title, assigned_staff, status, due_date, sort_order, notes } = req.body;
+  const { title, assigned_staff, status, due_date, sort_order, notes, project_id } = req.body;
   const r = db.prepare(`
-    INSERT INTO subtasks (engagement_id, title, assigned_staff, status, due_date, sort_order, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(req.params.engagementId, title, assigned_staff || null,
+    INSERT INTO subtasks (engagement_id, project_id, title, assigned_staff, status, due_date, sort_order, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(req.params.engagementId, project_id || null, title, assigned_staff || null,
          status || 'Not Started', due_date || null, sort_order ?? 0, notes || null);
   res.status(201).json(db.prepare('SELECT * FROM subtasks WHERE id = ?').get(r.lastInsertRowid));
 });

@@ -10,7 +10,7 @@ const { findPeriodIdForDate }    = require('./payPeriods');
 //          pay_period_id, billable, entry_status, service_code
 router.get('/', (req, res) => {
   const {
-    engagement_id, staff_member,
+    engagement_id, project_id, staff_member,
     date_from, date_to,
     pay_period_id, billable, entry_status, service_code,
   } = req.query;
@@ -24,6 +24,7 @@ router.get('/', (req, res) => {
   const params = [];
 
   if (engagement_id) { query += ' AND t.engagement_id = ?';   params.push(engagement_id); }
+  if (project_id)    { query += ' AND t.project_id = ?';      params.push(project_id); }
   // Staff always see only their own entries (admin/manager can filter any)
   if (req.user.role !== 'admin' && !staff_member) {
     query += ' AND t.staff_member = ?';

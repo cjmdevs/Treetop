@@ -24,7 +24,8 @@
       "Bash(npx --yes acorn --ecma2022 --module src/pages/Contacts.jsx)",
       "Bash(echo \"exit: $?\")",
       "Bash(node -e \"const { BuildingOffice2Icon } = require\\('C:/Users/carso/Claude Projects/mgrcpas/client/node_modules/@heroicons/react/24/outline/index.js'\\); console.log\\(typeof BuildingOffice2Icon\\);\")",
-      "mcp__plugin_claude-video-vision_claude-video-vision__video_analyze"
+      "mcp__plugin_claude-video-vision_claude-video-vision__video_analyze",
+      "Bash(ls \"C:\\\\Users\\\\carso\\\\Claude Projects\\\\mgrcpas\\\\server\" 2>&1 | head -20)"
     ]
   }
 }

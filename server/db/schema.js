@@ -45,10 +45,12 @@ function initializeDatabase() {
       budgeted_amount REAL,
       priority TEXT NOT NULL DEFAULT 'Normal',
       prior_project_id INTEGER,
+      contact_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
-      FOREIGN KEY (prior_project_id) REFERENCES projects(id) ON DELETE SET NULL
+      FOREIGN KEY (prior_project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS time_entries (
@@ -190,6 +192,7 @@ function initializeDatabase() {
       field_type TEXT NOT NULL DEFAULT 'Text',
       dropdown_options TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
+      scope TEXT NOT NULL DEFAULT 'engagement',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -200,6 +203,16 @@ function initializeDatabase() {
       value TEXT,
       UNIQUE(engagement_id, field_definition_id),
       FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+      FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS project_custom_field_values (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      field_definition_id INTEGER NOT NULL,
+      value TEXT,
+      UNIQUE(project_id, field_definition_id),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
     );
 
@@ -329,6 +342,7 @@ function initializeDatabase() {
       email_primary TEXT,
       email_secondary TEXT,
       website TEXT,
+      client_group_id INTEGER,
       referral_source TEXT,
       referred_by_contact_id INTEGER,
       naic_code TEXT,
@@ -387,6 +401,16 @@ function initializeDatabase() {
       label TEXT NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS project_statuses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL DEFAULT '#6B7280',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS user_preferences (

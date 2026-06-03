@@ -5,8 +5,10 @@ import { staffRatesApi }         from '../api/staffRates'
 import { automationsApi }        from '../api/automations'
 import { usersApi }              from '../api/users'
 import { contactClientTypesApi } from '../api/contactClientTypes'
+import { projectStatusesApi }    from '../api/projectStatuses'
 import { useAuth }               from '../context/AuthContext'
-import { TrashIcon, PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { useStatuses }           from '../context/StatusesContext'
+import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon } from '@heroicons/react/24/outline'
 
 const FIELD_TYPES  = ['Text', 'Number', 'Date', 'Dropdown', 'Checkbox']
 const CATEGORIES   = ['Tax', 'Audit', 'Bookkeeping', 'Advisory', 'Admin', 'Other']
@@ -109,9 +111,12 @@ function ActionConfigForm({ actionType, value, onChange }) {
   return null
 }
 
+const BLANK_STATUS = { label: '', color: '#3B82F6', is_default: false }
+
 export default function Settings() {
   const [tab, setTab] = useState('fields')
   const { isAdmin } = useAuth()
+  const { refresh: refreshStatuses } = useStatuses()
 
   // ── Custom fields ──────────────────────────────────────────────────────────
   const [fields,       setFields]       = useState([])
@@ -146,6 +151,15 @@ export default function Settings() {
   const [userSaving, setUserSaving] = useState(false)
   const [userError,  setUserError]  = useState('')
 
+  // ── Project statuses ───────────────────────────────────────────────────────
+  const [psRows,       setPsRows]       = useState([])
+  const [editingPS,    setEditingPS]    = useState(null) // null | 'new' | id
+  const [psForm,       setPsForm]       = useState(BLANK_STATUS)
+  const [psError,      setPsError]      = useState('')
+
+  // ── Custom field scope ─────────────────────────────────────────────────────
+  const [fieldScope, setFieldScope] = useState('engagement') // 'engagement' | 'project'
+
   const [saving, setSaving] = useState(false)
 
   const loadFields      = () => customFieldsApi.listDefinitions().then(setFields)
@@ -154,7 +168,8 @@ export default function Settings() {
   const loadRules       = () => automationsApi.list().then(setRules)
   const loadClientTypes = () => contactClientTypesApi.list({ include_inactive: true }).then(r => setClientTypes(r.types ?? []))
   const loadUsers       = useCallback(() => usersApi.list().then(setUsers), [])
-  useEffect(() => { loadFields(); loadCodes(); loadRates(); loadRules(); loadClientTypes() }, [])
+  const loadStatuses    = () => projectStatusesApi.list({ include_inactive: 'true' }).then(setPsRows)
+  useEffect(() => { loadFields(); loadCodes(); loadRates(); loadRules(); loadClientTypes(); loadStatuses() }, [])
   useEffect(() => { if (tab === 'accounts' || tab === 'rates') loadUsers() }, [tab, loadUsers])
 
   const setF = field => e => setFieldForm(f => ({ ...f, [field]: e.target.value }))
@@ -167,6 +182,7 @@ export default function Settings() {
     try {
       const payload = {
         ...fieldForm,
+        scope: fieldForm.scope || fieldScope || 'engagement',
         sort_order: parseInt(fieldForm.sort_order) || 0,
         dropdown_options: fieldForm.field_type === 'Dropdown'
           ? fieldForm.dropdown_options.split(',').map(s => s.trim()).filter(Boolean) : null,
@@ -180,6 +196,52 @@ export default function Settings() {
   const deleteField = async id => {
     if (!confirm('Delete this custom field? All values will be lost.')) return
     await customFieldsApi.deleteDefinition(id); loadFields()
+  }
+
+  // ── Status save handlers ────────────────────────────────────────────────────
+  const saveStatus = async e => {
+    e.preventDefault(); setPsError(''); setSaving(true)
+    try {
+      if (editingPS === 'new') {
+        await projectStatusesApi.create(psForm)
+      } else {
+        await projectStatusesApi.update(editingPS, psForm)
+      }
+      setEditingPS(null); setPsForm(BLANK_STATUS)
+      loadStatuses(); refreshStatuses()
+    } catch (err) {
+      setPsError(err?.message || 'Failed to save status')
+    } finally { setSaving(false) }
+  }
+
+  const toggleStatusActive = async (row) => {
+    await projectStatusesApi.update(row.id, { is_active: row.is_active ? 0 : 1 })
+    loadStatuses(); refreshStatuses()
+  }
+
+  const setDefaultStatus = async (row) => {
+    await projectStatusesApi.update(row.id, { is_default: 1 })
+    loadStatuses(); refreshStatuses()
+  }
+
+  const deleteStatus = async (row) => {
+    setPsError('')
+    try {
+      await projectStatusesApi.delete(row.id)
+      loadStatuses(); refreshStatuses()
+    } catch (err) {
+      setPsError(err?.message || 'Cannot delete this status')
+    }
+  }
+
+  const moveStatus = async (idx, dir) => {
+    const sorted = [...psRows].sort((a, b) => a.sort_order - b.sort_order)
+    const target = idx + dir
+    if (target < 0 || target >= sorted.length) return
+    const order = sorted.map((r, i) => ({ id: r.id, sort_order: i }))
+    const tmp = order[idx].sort_order; order[idx].sort_order = order[target].sort_order; order[target].sort_order = tmp
+    await projectStatusesApi.reorder(order)
+    loadStatuses(); refreshStatuses()
   }
 
   const saveCode = async e => {
@@ -319,12 +381,13 @@ export default function Settings() {
 
       <div className="flex gap-1 mb-6 border-b border-gray-200">
         {[
-          ['fields',        'Custom Fields',  true],
-          ['codes',         'Service Codes',  true],
-          ['rates',         'Staff Rates',    true],
-          ['automations',   'Automations',    true],
-          ['client-types',  'Client Types',   isAdmin],
-          ['accounts',      'User Accounts',  isAdmin],
+          ['fields',        'Custom Fields',   true],
+          ['statuses',      'Project Statuses',true],
+          ['codes',         'Service Codes',   true],
+          ['rates',         'Staff Rates',     true],
+          ['automations',   'Automations',     true],
+          ['client-types',  'Client Types',    isAdmin],
+          ['accounts',      'User Accounts',   isAdmin],
         ].filter(([,, visible]) => visible).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === key ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
@@ -337,8 +400,20 @@ export default function Settings() {
       {tab === 'fields' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-gray-500">Add custom fields that appear on every engagement.</p>
-            <button onClick={() => { setEditingField('new'); setFieldForm({ ...BLANK_FIELD, sort_order: fields.length }) }}
+            <div className="flex items-center gap-3">
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                {[['engagement','Engagement Fields'],['project','Project Columns']].map(([k, l]) => (
+                  <button key={k} onClick={() => { setFieldScope(k); setEditingField(null) }}
+                    className={`px-4 py-1.5 font-medium transition-colors ${fieldScope === k ? 'bg-accent text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <p className="text-sm text-gray-400">
+                {fieldScope === 'project' ? 'Add custom columns to the Projects grid.' : 'Add custom fields to every engagement.'}
+              </p>
+            </div>
+            <button onClick={() => { setEditingField('new'); setFieldForm({ ...BLANK_FIELD, sort_order: fields.filter(f => (f.scope||'engagement')===fieldScope).length, scope: fieldScope }) }}
               className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
               + Add Field
             </button>
@@ -389,7 +464,7 @@ export default function Settings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {fields.map(f => (
+                {fields.filter(f => (f.scope || 'engagement') === fieldScope).map(f => (
                   <tr key={f.id} className="hover:bg-gray-50">
                     <td className="px-5 py-3 text-gray-400">{f.sort_order}</td>
                     <td className="px-5 py-3 font-medium text-gray-900">{f.field_name}</td>
@@ -407,7 +482,136 @@ export default function Settings() {
                   </tr>
                 ))}
                 {fields.length === 0 && (
-                  <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">No custom fields defined yet.</td></tr>
+                  <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">No {fieldScope === 'project' ? 'project columns' : 'custom fields'} defined yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Project Statuses ──────────────────────────────────────────────────── */}
+      {tab === 'statuses' && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-gray-500">Define project workflow statuses. These power the Kanban board and grid badges.</p>
+            <button onClick={() => { setEditingPS('new'); setPsForm(BLANK_STATUS); setPsError('') }}
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              + Add Status
+            </button>
+          </div>
+
+          {psError && <p className="mb-3 text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">{psError}</p>}
+
+          {editingPS && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-4">
+                {editingPS === 'new' ? 'New Status' : 'Edit Status'}
+              </h3>
+              <form onSubmit={saveStatus} className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <label className={labelCls}>Label *</label>
+                    <input required value={psForm.label}
+                      onChange={e => setPsForm(f => ({ ...f, label: e.target.value }))}
+                      className={inputCls} placeholder="e.g. Needs Info" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Color</label>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={psForm.color}
+                        onChange={e => setPsForm(f => ({ ...f, color: e.target.value }))}
+                        className="h-9 w-14 rounded border border-gray-200 cursor-pointer p-0.5" />
+                      <input value={psForm.color}
+                        onChange={e => setPsForm(f => ({ ...f, color: e.target.value }))}
+                        className={inputCls + ' font-mono text-xs'} placeholder="#3B82F6" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={!!psForm.is_default}
+                      onChange={e => setPsForm(f => ({ ...f, is_default: e.target.checked }))}
+                      className="rounded border-gray-300 accent-accent" />
+                    Set as default (for new projects)
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Preview:</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                    style={{ backgroundColor: psForm.color + '1a', color: psForm.color }}>
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: psForm.color }} />
+                    {psForm.label || 'Status Label'}
+                  </span>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => { setEditingPS(null); setPsForm(BLANK_STATUS); setPsError('') }}
+                    className="px-4 py-2 text-sm text-gray-600">Cancel</button>
+                  <button type="submit" disabled={saving}
+                    className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    {saving ? 'Saving...' : 'Save Status'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500">
+                  {['Order', 'Status', 'Color', 'Active', 'Default', ''].map(h => (
+                    <th key={h} className="px-5 py-3 text-xs font-medium uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {[...psRows].sort((a,b) => a.sort_order - b.sort_order).map((row, idx, arr) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-5 py-3">
+                      <div className="flex gap-1">
+                        <button onClick={() => moveStatus(idx, -1)} disabled={idx === 0}
+                          className="text-gray-300 hover:text-gray-600 disabled:opacity-20 text-xs">▲</button>
+                        <button onClick={() => moveStatus(idx, 1)} disabled={idx === arr.length - 1}
+                          className="text-gray-300 hover:text-gray-600 disabled:opacity-20 text-xs">▼</button>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                        style={{ backgroundColor: row.color + '1a', color: row.color }}>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color }} />
+                        {row.label}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 font-mono text-xs text-gray-500">{row.color}</td>
+                    <td className="px-5 py-3">
+                      <button onClick={() => toggleStatusActive(row)}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${row.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {row.is_active ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td className="px-5 py-3">
+                      {row.is_default ? (
+                        <span className="text-xs text-accent font-medium">✓ Default</span>
+                      ) : (
+                        <button onClick={() => setDefaultStatus(row)} className="text-xs text-gray-400 hover:text-accent">
+                          Set default
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex gap-2">
+                        <button onClick={() => { setEditingPS(row.id); setPsForm({ label: row.label, color: row.color, is_default: !!row.is_default }); setPsError('') }}
+                          className="text-gray-400 hover:text-gray-600"><PencilIcon className="w-4 h-4" /></button>
+                        <button onClick={() => deleteStatus(row)} className="text-gray-400 hover:text-red-500">
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {psRows.length === 0 && (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-gray-400">No statuses defined.</td></tr>
                 )}
               </tbody>
             </table>

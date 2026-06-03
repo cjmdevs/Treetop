@@ -25,6 +25,8 @@ db.exec(`
   DELETE FROM pay_periods;
   DELETE FROM automation_rules;
   DELETE FROM tax_deadlines;
+  DELETE FROM project_custom_field_values;
+  DELETE FROM project_statuses;
   DELETE FROM contact_activity_log;
   DELETE FROM contact_tags;
   DELETE FROM contact_staff_assignments;
@@ -599,6 +601,73 @@ insertActivity.run(cIds['thompson'], userIds['Marcus Maurer'], 'note',
   'First contact — Chamber event',
   'Met Robert and Sarah at Modesto Chamber of Commerce mixer. They are looking to switch CPA firms.',
   '2026-03-15 16:45:00');
+
+// ── Project Statuses ──────────────────────────────────────────────────────────
+const insertPS = db.prepare(
+  'INSERT INTO project_statuses (label, color, sort_order, is_active, is_default) VALUES (?,?,?,1,?)'
+);
+[
+  ['Not Started',     '#94A3B8', 0, 1],
+  ['In Progress',     '#3B82F6', 1, 0],
+  ['Awaiting Client', '#F59E0B', 2, 0],
+  ['In Review',       '#8B5CF6', 3, 0],
+  ['Extension Filed', '#F97316', 4, 0],
+  ['Completed',       '#10B981', 5, 0],
+  ['Delivered',       '#14B8A6', 6, 0],
+].forEach(([label, color, order, isDef]) => insertPS.run(label, color, order, isDef));
+
+// ── Client Groups ─────────────────────────────────────────────────────────────
+// Group 2: Chen Family Trust + Linda Chen (trustee)
+db.prepare('UPDATE contacts SET client_group_id = 2 WHERE id IN (?, ?)').run(cIds['chen_trust'], cIds['linda_chen']);
+// Group 3: Santos & Associates + Diego Santos (owner)
+db.prepare('UPDATE contacts SET client_group_id = 3 WHERE id IN (?, ?)').run(cIds['santos'], cIds['diego_santos']);
+// Group 4: Thompson, Robert J. + Thompson Realty LLC
+db.prepare('UPDATE contacts SET client_group_id = 4 WHERE id IN (?, ?)').run(cIds['thompson'], cIds['thompson_realty']);
+
+// ── Milestone field definitions (project-scoped) ─────────────────────────────
+const insertMilestoneDef = db.prepare(`
+  INSERT INTO custom_field_definitions (field_name, field_type, dropdown_options, sort_order, scope)
+  VALUES (?, ?, ?, ?, 'project')
+`);
+const milestoneDefs = [
+  ['Eng Ltr Sent',       'Date',     null,                                                       0],
+  ["Eng Ltr Rec'd",      'Date',     null,                                                       1],
+  ['Tax Org Sent',       'Date',     null,                                                       2],
+  ['Organizer Type',     'Text',     null,                                                       3],
+  ['Return Client Docs', 'Date',     null,                                                       4],
+  ["E-File Auth Rec'd",  'Date',     null,                                                       5],
+  ['Delivery Method',    'Dropdown', JSON.stringify(['Email','Mail','Portal','In-Person','Pickup']),6],
+  ['Received',           'Date',     null,                                                       7],
+  ['Prepared',           'Date',     null,                                                       8],
+  ['Reviewed',           'Date',     null,                                                       9],
+  ['PTE',                'Checkbox', null,                                                      10],
+  ['2QTR',               'Date',     null,                                                      11],
+  ['3QTR',               'Date',     null,                                                      12],
+  ['Fiscal Year',        'Text',     null,                                                      13],
+];
+const mFieldIds = {};
+milestoneDefs.forEach(([name, type, opts, order]) => {
+  const r = insertMilestoneDef.run(name, type, opts, order);
+  mFieldIds[name] = r.lastInsertRowid;
+});
+
+// ── Milestone values — seed Apex 2025 project ─────────────────────────────────
+const insertMilestoneVal = db.prepare(`
+  INSERT OR REPLACE INTO project_custom_field_values (project_id, field_definition_id, value)
+  VALUES (?, ?, ?)
+`);
+// apexCurrent is the Apex 2025 project
+[
+  ['Eng Ltr Sent',       '2026-01-15'],
+  ["Eng Ltr Rec'd",      '2026-01-22'],
+  ['Tax Org Sent',       '2026-02-01'],
+  ['Delivery Method',    'Portal'],
+  ['Received',           '2026-03-10'],
+  ['Prepared',           '2026-04-05'],
+  ['Reviewed',           '2026-04-10'],
+].forEach(([name, val]) => {
+  if (mFieldIds[name]) insertMilestoneVal.run(apexCurrent, mFieldIds[name], val);
+});
 
 console.log('Database seeded: 5 engagements, 6 projects (Apex: 2024 Delivered + 2025 Extension Filed; others: 1 each),');
 console.log('  9 time entries (P10/2026), 3 billing records, 18 service codes, 3 templates, 9 subtasks, 3 notes,');

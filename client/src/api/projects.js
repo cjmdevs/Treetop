@@ -23,4 +23,9 @@ export const projectsApi = {
   rollForward: (id) => api.post(`/projects/${id}/roll-forward`, {}),
 
   rollForwardBatch: (ids) => api.post('/projects/roll-forward-batch', { ids }),
+
+  getMilestones:   (id)          => api.get(`/projects/${id}/milestones`),
+  saveMilestone:   (id, fid, val)=> api.post(`/projects/${id}/milestones`, { field_definition_id: fid, value: val }),
+  checkGroup:      (name)        => api.get(`/projects/check-group?client_name=${encodeURIComponent(name)}`),
+  milestoneFields: ()            => api.get('/projects/meta/milestone-fields'),
 }

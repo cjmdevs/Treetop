@@ -15,4 +15,7 @@ export const contactsApi = {
   setAssignments:    (id, assignments)  => api.put(`/contacts/${id}/staff-assignments`, { assignments }),
   metaTags:          ()                 => api.get('/contacts/meta/tags'),
   metaClientTypes:   ()                 => api.get('/contacts/meta/client-types'),
+  groups:            ()                 => api.get('/contacts/groups'),
+  groupMembers:      (id)               => api.get(`/contacts/${id}/group-members`),
+  setGroup:          (id, groupId)      => api.patch(`/contacts/${id}/group`, { group_id: groupId }),
 }

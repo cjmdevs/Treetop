@@ -99,12 +99,33 @@ function doRollForward(project, eng) {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(newProjectId);
 }
 
+// ── GET /api/projects/check-group — show/hide related-entities toggle ────────
+router.get('/check-group', (req, res) => {
+  const { client_name } = req.query;
+  if (!client_name) return res.json({ has_group: false, group_id: null });
+  const contact = db.prepare(`
+    SELECT client_group_id FROM contacts
+    WHERE (display_name LIKE ? OR business_name LIKE ? OR client_code LIKE ?)
+      AND client_group_id IS NOT NULL
+    LIMIT 1
+  `).get(`%${client_name}%`, `%${client_name}%`, `%${client_name}%`);
+  res.json({ has_group: !!contact, group_id: contact?.client_group_id ?? null });
+});
+
+// ── GET /api/projects/meta/milestone-fields ────────────────────────────────────
+router.get('/meta/milestone-fields', (req, res) => {
+  const fields = db.prepare(
+    "SELECT * FROM custom_field_definitions WHERE scope='project' ORDER BY sort_order ASC"
+  ).all();
+  res.json(fields);
+});
+
 // ── GET /api/projects ──────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const {
     client_name, project_type, entity_type, status, primary_partner, manager,
     preparer, reviewer, in_charge, priority, due_from, due_to, period_label,
-    show_completed, show_delivered, sort = 'current_due', dir = 'ASC',
+    show_completed, show_delivered, show_related, sort = 'current_due', dir = 'ASC',
   } = req.query;
 
   const ALLOWED_SORT = [
@@ -119,7 +140,9 @@ router.get('/', (req, res) => {
     SELECT p.*,
       e.engagement_type, e.recurrence_frequency,
       COALESCE(SUM(te.hours), 0) as actual_hours,
-      COALESCE(SUM(CASE WHEN te.billable=1 THEN te.hours * COALESCE(te.billing_rate,0) ELSE 0 END), 0) as actual_amount
+      COALESCE(SUM(CASE WHEN te.billable=1 THEN te.hours * COALESCE(te.billing_rate,0) ELSE 0 END), 0) as actual_amount,
+      (SELECT json_group_object(CAST(pcfv.field_definition_id AS TEXT), pcfv.value)
+       FROM project_custom_field_values pcfv WHERE pcfv.project_id = p.id) as milestone_values_json
     FROM projects p
     JOIN engagements e ON e.id = p.engagement_id
     LEFT JOIN time_entries te ON te.project_id = p.id
@@ -127,7 +150,29 @@ router.get('/', (req, res) => {
   `;
   const params = [];
 
-  if (client_name)     { query += ' AND p.client_name LIKE ?';     params.push(`%${client_name}%`); }
+  // client_name filter — with optional client-group expansion
+  if (client_name) {
+    if (show_related === 'true') {
+      // Find all contacts in the same client_group and include their names
+      const groupMembers = db.prepare(`
+        SELECT DISTINCT c2.display_name, c2.business_name
+        FROM contacts c1
+        JOIN contacts c2 ON c2.client_group_id = c1.client_group_id
+        WHERE c1.client_group_id IS NOT NULL
+          AND (c1.display_name LIKE ? OR c1.business_name LIKE ? OR c1.client_code LIKE ?)
+      `).all(`%${client_name}%`, `%${client_name}%`, `%${client_name}%`);
+
+      if (groupMembers.length > 0) {
+        const names = [...new Set(groupMembers.flatMap(c => [c.display_name, c.business_name].filter(Boolean)))];
+        query += ` AND p.client_name IN (${names.map(() => '?').join(',')})`;
+        params.push(...names);
+      } else {
+        query += ' AND p.client_name LIKE ?'; params.push(`%${client_name}%`);
+      }
+    } else {
+      query += ' AND p.client_name LIKE ?'; params.push(`%${client_name}%`);
+    }
+  }
   if (project_type)    { query += ' AND p.project_type = ?';       params.push(project_type); }
   if (entity_type)     { query += ' AND p.entity_type = ?';        params.push(entity_type); }
   if (status)          { query += ' AND p.status = ?';             params.push(status); }
@@ -218,28 +263,66 @@ router.get('/:id', (req, res) => {
 
 // ── POST /api/projects ─────────────────────────────────────────────────────────
 router.post('/', (req, res) => {
-  const {
-    engagement_id, client_name, project_type, entity_type, period_label,
+  let {
+    engagement_id, contact_id, client_name, project_type, entity_type, period_label,
     fiscal_year_end, status, original_due, current_due, start_date,
     delivered_date, completed_date, extended, client_number, engagement_number,
     primary_partner, manager, preparer, reviewer, in_charge,
     budgeted_hours, budgeted_amount, priority, prior_project_id,
+    // Used for auto-creating engagement when engagement_id is not supplied
+    engagement_type, recurrence_frequency,
   } = req.body;
 
-  if (!engagement_id || !client_name) {
-    return res.status(400).json({ error: 'engagement_id and client_name required' });
+  if (!client_name && !contact_id) {
+    return res.status(400).json({ error: 'client_name or contact_id required' });
+  }
+
+  // If contact_id provided but no client_name, look up the client name
+  if (contact_id && !client_name) {
+    const contact = db.prepare('SELECT display_name, business_name, client_code FROM contacts WHERE id = ?').get(contact_id);
+    if (contact) {
+      client_name = contact.display_name || contact.business_name;
+      if (!client_number && contact.client_code) client_number = contact.client_code;
+    }
+  }
+
+  // If client_name provided but no contact_id, look up from contacts
+  if (client_name && !contact_id) {
+    const contact = db.prepare(
+      'SELECT id FROM contacts WHERE display_name = ? OR business_name = ? LIMIT 1'
+    ).get(client_name, client_name);
+    if (contact) contact_id = contact.id;
+  }
+
+  // Auto-find or create engagement when engagement_id not provided
+  if (!engagement_id) {
+    const engType = engagement_type || project_type || 'Tax Return';
+    const existing = db.prepare(
+      'SELECT id FROM engagements WHERE client_name = ? AND engagement_type = ? LIMIT 1'
+    ).get(client_name, engType);
+
+    if (existing) {
+      engagement_id = existing.id;
+    } else {
+      const r = db.prepare(`
+        INSERT INTO engagements
+          (client_name, engagement_type, recurrence_frequency, status, priority)
+        VALUES (?, ?, ?, 'Not Started', ?)
+      `).run(client_name, engType, recurrence_frequency || 'Annually', priority || 'Normal');
+      engagement_id = r.lastInsertRowid;
+    }
   }
 
   const result = db.prepare(`
     INSERT INTO projects (
-      engagement_id, client_name, project_type, entity_type, period_label,
+      engagement_id, contact_id, client_name, project_type, entity_type, period_label,
       fiscal_year_end, status, original_due, current_due, start_date,
       delivered_date, completed_date, extended, client_number, engagement_number,
       primary_partner, manager, preparer, reviewer, in_charge,
       budgeted_hours, budgeted_amount, priority, prior_project_id
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    engagement_id, client_name, project_type || null, entity_type || null,
+    engagement_id, contact_id || null, client_name, project_type || null, entity_type || null,
     period_label || null, fiscal_year_end || null, status || 'Not Started',
     original_due || null, current_due || original_due || null, start_date || null,
     delivered_date || null, completed_date || null, extended ? 1 : 0,
@@ -346,6 +429,29 @@ router.post('/:id/roll-forward', (req, res) => {
 
   const newProject = doRollForward(project, eng);
   res.status(201).json(newProject);
+});
+
+// ── GET /api/projects/:id/milestones ──────────────────────────────────────────
+router.get('/:id/milestones', (req, res) => {
+  const values = db.prepare(`
+    SELECT pcfv.*, cfd.field_name, cfd.field_type, cfd.dropdown_options
+    FROM project_custom_field_values pcfv
+    JOIN custom_field_definitions cfd ON cfd.id = pcfv.field_definition_id
+    WHERE pcfv.project_id = ?
+  `).all(req.params.id);
+  res.json(values);
+});
+
+// ── POST /api/projects/:id/milestones ─────────────────────────────────────────
+router.post('/:id/milestones', (req, res) => {
+  const { field_definition_id, value } = req.body;
+  if (!field_definition_id) return res.status(400).json({ error: 'field_definition_id required' });
+  db.prepare(`
+    INSERT INTO project_custom_field_values (project_id, field_definition_id, value)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id, field_definition_id) DO UPDATE SET value = excluded.value
+  `).run(req.params.id, field_definition_id, value ?? null);
+  res.json({ ok: true });
 });
 
 module.exports = router;

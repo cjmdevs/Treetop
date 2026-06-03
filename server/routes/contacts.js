@@ -91,6 +91,21 @@ router.get('/', (req, res) => {
   })));
 });
 
+// GET /api/contacts/groups — must come before /:id
+router.get('/groups', (req, res) => {
+  const groups = db.prepare(`
+    SELECT DISTINCT client_group_id
+    FROM contacts WHERE client_group_id IS NOT NULL ORDER BY client_group_id ASC
+  `).all();
+  const result = groups.map(g => ({
+    group_id: g.client_group_id,
+    members: db.prepare(
+      'SELECT id, display_name, business_name, type, client_code, status FROM contacts WHERE client_group_id = ? ORDER BY display_name ASC'
+    ).all(g.client_group_id),
+  }));
+  res.json(result);
+});
+
 // GET /api/contacts/:id
 router.get('/:id', (req, res) => {
   const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
@@ -395,6 +410,35 @@ router.put('/:id/staff-assignments', (req, res) => {
     ORDER BY csa.role ASC
   `).all(req.params.id);
   res.json({ assignments: result });
+});
+
+// GET /api/contacts/:id/group-members — members sharing the same group
+router.get('/:id/group-members', (req, res) => {
+  const contact = db.prepare('SELECT client_group_id FROM contacts WHERE id = ?').get(req.params.id);
+  if (!contact) return res.status(404).json({ error: 'Not found' });
+  if (!contact.client_group_id) return res.json([]);
+  const members = db.prepare(`
+    SELECT id, display_name, business_name, type, client_code, status, client_group_id
+    FROM contacts WHERE client_group_id = ? AND id != ? ORDER BY display_name ASC
+  `).all(contact.client_group_id, req.params.id);
+  res.json(members);
+});
+
+// PATCH /api/contacts/:id/group — assign or remove from a group
+router.patch('/:id/group', (req, res) => {
+  const { group_id } = req.body; // null to remove, integer to assign, 'new' to create new group
+  let finalGroupId = null;
+
+  if (group_id === 'new') {
+    // Generate a new group_id = max existing + 1
+    const maxRow = db.prepare('SELECT COALESCE(MAX(client_group_id), 0) + 1 AS next FROM contacts').get();
+    finalGroupId = maxRow.next;
+  } else if (group_id !== null && group_id !== undefined && group_id !== '') {
+    finalGroupId = parseInt(group_id);
+  }
+
+  db.prepare('UPDATE contacts SET client_group_id = ? WHERE id = ?').run(finalGroupId, req.params.id);
+  res.json({ ok: true, group_id: finalGroupId });
 });
 
 module.exports = router;

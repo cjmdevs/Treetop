@@ -4,7 +4,8 @@ import { projectsApi } from '../api/projects'
 import { prefsApi } from '../api/userPreferences'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { PROJECT_STATUSES } from '../config/projectStatuses'
+import { useStatuses, makeStatusStyle } from '../context/StatusesContext'
+import { UsersIcon } from '@heroicons/react/24/outline'
 import {
   AdjustmentsHorizontalIcon,
   TableCellsIcon,
@@ -20,16 +21,7 @@ import {
 import { BookmarkIcon as BookmarkSolid } from '@heroicons/react/24/solid'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const STATUS_STYLE = {
-  'Not Started':     { bg: 'bg-gray-100',    text: 'text-gray-600',   dot: 'bg-gray-400',   border: 'border-t-gray-300' },
-  'In Progress':     { bg: 'bg-blue-50',     text: 'text-blue-700',   dot: 'bg-blue-500',   border: 'border-t-blue-500' },
-  'Awaiting Client': { bg: 'bg-amber-50',    text: 'text-amber-700',  dot: 'bg-amber-500',  border: 'border-t-amber-400' },
-  'In Review':       { bg: 'bg-purple-50',   text: 'text-purple-700', dot: 'bg-purple-500', border: 'border-t-purple-500' },
-  'Extension Filed': { bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500', border: 'border-t-orange-400' },
-  'Completed':       { bg: 'bg-emerald-50',  text: 'text-emerald-700',dot: 'bg-emerald-500',border: 'border-t-emerald-500' },
-  'Delivered':       { bg: 'bg-teal-50',     text: 'text-teal-700',   dot: 'bg-teal-500',   border: 'border-t-teal-500' },
-}
+// STATUS_STYLE is now derived from the StatusesContext at render time (see useStatuses() below)
 
 const PRIORITY_STYLE = {
   Low:    'bg-gray-100 text-gray-500',
@@ -41,7 +33,7 @@ const PROJECT_TYPES = ['1040','1041','1065','1120','1120S','Bookkeeping','Audit'
 const ENTITY_TYPES  = ['Individual','SMLLC','LLC','S-Corp','C-Corp','Partnership','Trust','Non-Profit','Other']
 const PRIORITIES    = ['Low','Normal','High']
 
-const ALL_COLUMNS = [
+const BASE_COLUMNS = [
   { key: 'period_label',    label: 'Period',           group: 'default' },
   { key: 'client_name',     label: 'Client',           group: 'default' },
   { key: 'project_type',    label: 'Project Type',     group: 'default' },
@@ -67,6 +59,8 @@ const ALL_COLUMNS = [
   { key: 'extended',        label: 'Extension Filed',  group: 'other' },
   { key: 'priority',        label: 'Priority',         group: 'other' },
 ]
+// ALL_COLUMNS is computed at runtime so milestone fields can be added
+// The component reads this from a ref that merges BASE_COLUMNS + milestoneFields state
 
 const DEFAULT_COLS = ['period_label','client_name','project_type','entity_type','status','original_due','current_due','delivered_date','in_charge','client_number','engagement_number']
 
@@ -75,14 +69,24 @@ const WEEK_END = (() => { const d = new Date(); d.setDate(d.getDate() + 7); retu
 
 // ── Small shared components ───────────────────────────────────────────────────
 
-function StatusBadge({ status, small }) {
-  const s = STATUS_STYLE[status] || STATUS_STYLE['Not Started']
+// StatusBadge — color comes from the StatusesContext (passed as prop from context consumer)
+function StatusBadge({ status, color = '#94A3B8', small }) {
+  const s = makeStatusStyle(color)
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full font-medium whitespace-nowrap ${s.bg} ${s.text} ${small ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs'}`}>
-      <span className={`rounded-full flex-shrink-0 ${s.dot} ${small ? 'w-1.5 h-1.5' : 'w-2 h-2'}`} />
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full font-medium whitespace-nowrap ${small ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs'}`}
+      style={{ ...s.bgStyle, ...s.textStyle }}
+    >
+      <span className="rounded-full flex-shrink-0" style={{ ...s.dotStyle, width: small ? 6 : 8, height: small ? 6 : 8 }} />
       {status}
     </span>
   )
+}
+
+// Hook that returns a status color for a given label
+function useStatusColor(label) {
+  const { byLabel } = useStatuses()
+  return byLabel[label]?.color || '#94A3B8'
 }
 
 function Initials({ name, size = 'sm' }) {
@@ -122,9 +126,30 @@ function PriorityBadge({ priority }) {
   )
 }
 
+function renderMilestoneCell(fieldId, project) {
+  const vals = project._milestoneValues || {}
+  const val = vals[String(fieldId)]
+  if (!val) return <span className="text-gray-300">—</span>
+  // Checkbox values
+  if (val === '1' || val === 'true' || val === 'Yes') return <span className="text-emerald-600 text-sm font-bold">✓</span>
+  // Date values (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return <span className="font-mono text-xs text-gray-600">{val}</span>
+  return <span className="text-xs text-gray-600">{val}</span>
+}
+
+function RenderStatusCell({ project }) {
+  const color = useStatusColor(project.status)
+  return <StatusBadge status={project.status} color={color} small />
+}
+
 function renderCell(key, project) {
+  // Milestone columns use ms_ prefix
+  if (key.startsWith('ms_')) {
+    const fieldId = key.slice(3)
+    return renderMilestoneCell(fieldId, project)
+  }
   switch (key) {
-    case 'status':        return <StatusBadge status={project.status} small />
+    case 'status':        return <RenderStatusCell project={project} />
     case 'original_due':  return <DueDate date={project.original_due} project={project} />
     case 'current_due':   return <DueDate date={project.current_due} project={project} />
     case 'delivered_date':return project.delivered_date ? <span className="font-mono text-xs text-gray-600">{project.delivered_date}</span> : <span className="text-gray-300">—</span>
@@ -146,9 +171,9 @@ function renderCell(key, project) {
 
 // ── Column Customizer Modal ───────────────────────────────────────────────────
 
-function ColumnCustomizer({ selected, onChange, onClose }) {
-  const [avail, setAvail] = useState(ALL_COLUMNS.filter(c => !selected.includes(c.key)))
-  const [sel, setSel] = useState(ALL_COLUMNS.filter(c => selected.includes(c.key)).sort((a, b) => selected.indexOf(a.key) - selected.indexOf(b.key)))
+function ColumnCustomizer({ selected, onChange, onClose, allColumns }) {
+  const [avail, setAvail] = useState(allColumns.filter(c => !selected.includes(c.key)))
+  const [sel, setSel] = useState(allColumns.filter(c => selected.includes(c.key)).sort((a, b) => selected.indexOf(a.key) - selected.indexOf(b.key)))
   const [availSearch, setAvailSearch] = useState('')
   const [highlightAvail, setHighlightAvail] = useState(null)
   const [highlightSel, setHighlightSel] = useState(null)
@@ -167,7 +192,7 @@ function ColumnCustomizer({ selected, onChange, onClose }) {
     setSel(s => s.filter(c => c.key !== col.key))
     setAvail(a => {
       const next = [...a, col]
-      return ALL_COLUMNS.filter(c => next.some(n => n.key === c.key))
+      return allColumns.filter(c => next.some(n => n.key === c.key))
     })
     setHighlightAvail(col.key)
     setHighlightSel(null)
@@ -186,8 +211,8 @@ function ColumnCustomizer({ selected, onChange, onClose }) {
   }
 
   const resetDefault = () => {
-    setSel(ALL_COLUMNS.filter(c => DEFAULT_COLS.includes(c.key)).sort((a,b) => DEFAULT_COLS.indexOf(a.key) - DEFAULT_COLS.indexOf(b.key)))
-    setAvail(ALL_COLUMNS.filter(c => !DEFAULT_COLS.includes(c.key)))
+    setSel(allColumns.filter(c => DEFAULT_COLS.includes(c.key)).sort((a,b) => DEFAULT_COLS.indexOf(a.key) - DEFAULT_COLS.indexOf(b.key)))
+    setAvail(allColumns.filter(c => !DEFAULT_COLS.includes(c.key)))
   }
 
   const apply = () => { onChange(sel.map(c => c.key)); onClose() }
@@ -301,6 +326,7 @@ function ColumnCustomizer({ selected, onChange, onClose }) {
 
 function BoardCard({ project, onDragStart, onClick }) {
   const over = isOverdue(project)
+  const color = useStatusColor(project.status)
   return (
     <div
       draggable
@@ -339,12 +365,13 @@ function BoardCard({ project, onDragStart, onClick }) {
 // ── Board View ────────────────────────────────────────────────────────────────
 
 function BoardView({ projects, onStatusChange, navigate }) {
+  const { activeStatuses } = useStatuses()
   const [dragging, setDragging] = useState(null)
   const [dragOver, setDragOver] = useState(null)
 
   const byStatus = useMemo(() =>
-    Object.fromEntries(PROJECT_STATUSES.map(s => [s.key, projects.filter(p => p.status === s.key)])),
-    [projects]
+    Object.fromEntries(activeStatuses.map(s => [s.label, projects.filter(p => p.status === s.label)])),
+    [activeStatuses, projects]
   )
 
   const handleDrop = (e, status) => {
@@ -358,8 +385,8 @@ function BoardView({ projects, onStatusChange, navigate }) {
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-6 min-h-[600px]">
-      {PROJECT_STATUSES.map(({ key: status }) => {
-        const style = STATUS_STYLE[status] || STATUS_STYLE['Not Started']
+      {activeStatuses.map(({ label: status, color }) => {
+        const s = makeStatusStyle(color)
         const cards = byStatus[status] || []
         const isDragOver = dragOver === status
         return (
@@ -370,10 +397,13 @@ function BoardView({ projects, onStatusChange, navigate }) {
             onDragLeave={() => setDragOver(null)}
             onDrop={e => handleDrop(e, status)}
           >
-            <div className={`border-t-2 ${style.border} rounded-xl overflow-hidden h-full flex flex-col transition-all ${isDragOver ? 'ring-2 ring-accent/30 bg-accent/5' : 'bg-gray-50'}`}>
+            <div
+              className={`rounded-xl overflow-hidden h-full flex flex-col transition-all ${isDragOver ? 'ring-2 ring-accent/30 bg-accent/5' : 'bg-gray-50'}`}
+              style={s.borderStyle}
+            >
               <div className="px-3 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+                  <span className="w-2 h-2 rounded-full" style={s.dotStyle} />
                   <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{status}</h3>
                 </div>
                 <span className="text-xs font-mono text-gray-400">{cards.length}</span>
@@ -403,7 +433,7 @@ function BoardView({ projects, onStatusChange, navigate }) {
 
 // ── Grid View ─────────────────────────────────────────────────────────────────
 
-function GridView({ projects, selectedCols, navigate }) {
+function GridView({ projects, selectedCols, navigate, allColumns }) {
   const [sortKey, setSortKey] = useState('original_due')
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
@@ -427,7 +457,7 @@ function GridView({ projects, selectedCols, navigate }) {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const cols = ALL_COLUMNS.filter(c => selectedCols.includes(c.key))
+  const cols = allColumns.filter(c => selectedCols.includes(c.key))
     .sort((a, b) => selectedCols.indexOf(a.key) - selectedCols.indexOf(b.key))
 
   const SortIndicator = ({ colKey }) => {
@@ -534,21 +564,44 @@ export default function Projects() {
   const [filters, setFilters]             = useState(EMPTY_FILTERS)
   const [showCompleted, setShowCompleted] = useState(false)
   const [showDelivered, setShowDelivered] = useState(false)
+  const [showRelated, setShowRelated]     = useState(false)
+  const [clientHasGroup, setClientHasGroup] = useState(false)
   const [selectedCols, setSelectedCols]   = useState(DEFAULT_COLS)
   const [showColConfig, setShowColConfig] = useState(false)
   const [showFilters, setShowFilters]     = useState(true)
   const [savedViews, setSavedViews]       = useState([])
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [newViewName, setNewViewName]     = useState('')
+  const [milestoneFields, setMilestoneFields] = useState([])
   const prefsLoaded = useRef(false)
+  const groupCheckTimer = useRef(null)
+  const { activeStatuses } = useStatuses()
 
-  // Load per-user column pref from server
+  // ALL_COLUMNS = base columns + live milestone fields
+  const ALL_COLUMNS = useMemo(() => [
+    ...BASE_COLUMNS,
+    ...milestoneFields.map(f => ({ key: `ms_${f.id}`, label: f.field_name, group: 'milestone' })),
+  ], [milestoneFields])
+
+  // Load per-user prefs + milestone field definitions
   useEffect(() => {
     if (!user?.id || prefsLoaded.current) return
     prefsLoaded.current = true
     prefsApi.get('projects_columns').then(r => { if (r.value) setSelectedCols(r.value) }).catch(() => {})
     prefsApi.get('projects_saved_views').then(r => { if (r.value) setSavedViews(r.value) }).catch(() => {})
+    projectsApi.milestoneFields().then(fields => setMilestoneFields(fields)).catch(() => {})
   }, [user?.id])
+
+  // Debounced client-group check when client_name filter changes
+  useEffect(() => {
+    clearTimeout(groupCheckTimer.current)
+    if (!filters.client_name.trim()) { setClientHasGroup(false); setShowRelated(false); return }
+    groupCheckTimer.current = setTimeout(() => {
+      projectsApi.checkGroup(filters.client_name)
+        .then(r => { setClientHasGroup(r.has_group); if (!r.has_group) setShowRelated(false) })
+        .catch(() => {})
+    }, 400)
+  }, [filters.client_name])
 
   const saveColPref = (cols) => {
     setSelectedCols(cols)
@@ -569,13 +622,19 @@ export default function Projects() {
     return { ...filters, _staff_name: user.full_name }
   }, [filters, user])
 
+  const attachMilestones = (rows) => rows.map(p => ({
+    ...p,
+    _milestoneValues: p.milestone_values_json ? (() => { try { return JSON.parse(p.milestone_values_json) } catch { return {} } })() : {},
+  }))
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const params = {
         ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
-        show_completed: showCompleted ? 'true' : 'false',
-        show_delivered: showDelivered ? 'true' : 'false',
+        show_completed:  showCompleted  ? 'true' : 'false',
+        show_delivered:  showDelivered  ? 'true' : 'false',
+        show_related:    showRelated    ? 'true' : 'false',
       }
       // Staff: fetch by each of their roles and merge
       if (user?.role === 'staff') {
@@ -588,18 +647,18 @@ export default function Projects() {
           ])
           const seen = new Set()
           const merged = [...p, ...r, ...i].filter(pr => { if (seen.has(pr.id)) return false; seen.add(pr.id); return true })
-          setProjects(merged)
+          setProjects(attachMilestones(merged))
           return
         }
       }
       const data = await projectsApi.list(params)
-      setProjects(data)
+      setProjects(attachMilestones(data))
     } catch {
       toast.error('Failed to load projects')
     } finally {
       setLoading(false)
     }
-  }, [filters, showCompleted, showDelivered, user])
+  }, [filters, showCompleted, showDelivered, showRelated, user])
 
   useEffect(() => { load() }, [load])
 
@@ -733,7 +792,7 @@ export default function Projects() {
             </select>
             <select value={filters.status} onChange={setFilter('status')} className={selectCls}>
               <option value="">All Statuses</option>
-              {PROJECT_STATUSES.map(s => <option key={s.key}>{s.key}</option>)}
+              {activeStatuses.map(s => <option key={s.label}>{s.label}</option>)}
             </select>
             <select value={filters.in_charge} onChange={setFilter('in_charge')} className={selectCls}>
               <option value="">All In-Charge</option>
@@ -763,6 +822,13 @@ export default function Projects() {
               <input type="checkbox" checked={showDelivered} onChange={e => setShowDelivered(e.target.checked)} className="rounded border-gray-300 accent-accent" />
               Show Delivered
             </label>
+            {clientHasGroup && filters.client_name && (
+              <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-accent font-medium border border-accent/30 rounded-lg px-2 py-1 bg-accent/5">
+                <UsersIcon className="w-3.5 h-3.5" />
+                <input type="checkbox" checked={showRelated} onChange={e => setShowRelated(e.target.checked)} className="rounded border-accent/40 accent-accent" />
+                Show all related entities
+              </label>
+            )}
 
             {hasActiveFilters && (
               <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700">
@@ -780,7 +846,7 @@ export default function Projects() {
         ) : view === 'board' ? (
           <BoardView projects={projects} onStatusChange={handleStatusChange} navigate={navigate} />
         ) : (
-          <GridView projects={projects} selectedCols={selectedCols} navigate={navigate} />
+          <GridView projects={projects} selectedCols={selectedCols} navigate={navigate} allColumns={ALL_COLUMNS} />
         )}
       </div>
 
@@ -790,6 +856,7 @@ export default function Projects() {
           selected={selectedCols}
           onChange={saveColPref}
           onClose={() => setShowColConfig(false)}
+          allColumns={ALL_COLUMNS}
         />
       )}
 

@@ -20,7 +20,6 @@ const ALL_NAV = [
   { to: '/dashboard',     label: 'Dashboard',           Icon: HomeIcon,             roles: ['admin','manager','staff'] },
   { to: '/contacts',      label: 'Contacts',            Icon: BuildingOffice2Icon,  roles: ['admin','manager','staff'] },
   { to: '/projects',      label: 'Projects',            Icon: FolderOpenIcon,       roles: ['admin','manager','staff'] },
-  { to: '/engagements',   label: 'Engagements',         Icon: BriefcaseIcon,        roles: ['admin','manager','staff'] },
   { to: '/time-tracking', label: 'Time Tracking',       Icon: ClockIcon,            roles: ['admin','manager','staff'] },
   { to: '/billing',       label: 'Billing',             Icon: CurrencyDollarIcon,   roles: ['admin','manager'] },
   { to: '/ar',            label: 'Accounts Receivable', Icon: BanknotesIcon,        roles: ['admin','manager'] },

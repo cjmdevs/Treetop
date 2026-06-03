@@ -161,6 +161,23 @@ function migrate() {
     `);
   }
 
+  // contact_id on projects (added 2026-05-29 phase-6)
+  const prjCols = db.prepare('PRAGMA table_info(projects)').all().map(c => c.name);
+  if (!prjCols.includes('contact_id')) {
+    db.exec('ALTER TABLE projects ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL');
+    // Backfill: match projects to contacts by client_name ↔ display_name
+    db.exec(`
+      UPDATE projects
+      SET contact_id = (
+        SELECT id FROM contacts
+        WHERE display_name = projects.client_name
+           OR business_name = projects.client_name
+        LIMIT 1
+      )
+      WHERE contact_id IS NULL
+    `);
+  }
+
   // project_id on time_entries (added 2026-05-29)
   const teCols2 = db.prepare('PRAGMA table_info(time_entries)').all().map(c => c.name);
   if (!teCols2.includes('project_id'))
@@ -191,6 +208,84 @@ function migrate() {
       )
     `);
   }
+
+  // project_statuses table (added 2026-05-29 phase-4)
+  const psTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='project_statuses'").get();
+  if (!psTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS project_statuses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        label TEXT NOT NULL UNIQUE,
+        color TEXT NOT NULL DEFAULT '#6B7280',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    // Seed from existing hardcoded values
+    const seed = [
+      ['Not Started',     '#94A3B8', 0, 1],
+      ['In Progress',     '#3B82F6', 1, 0],
+      ['Awaiting Client', '#F59E0B', 2, 0],
+      ['In Review',       '#8B5CF6', 3, 0],
+      ['Extension Filed', '#F97316', 4, 0],
+      ['Completed',       '#10B981', 5, 0],
+      ['Delivered',       '#14B8A6', 6, 0],
+    ];
+    const ins = db.prepare('INSERT OR IGNORE INTO project_statuses (label, color, sort_order, is_default) VALUES (?,?,?,?)');
+    seed.forEach(([label, color, order, isDef]) => ins.run(label, color, order, isDef));
+    // Set "Not Started" as default
+    db.exec("UPDATE project_statuses SET is_default = 1 WHERE label = 'Not Started'");
+  }
+
+  // client_group_id on contacts (added 2026-05-29 phase-4)
+  const contactCols2 = db.prepare('PRAGMA table_info(contacts)').all().map(c => c.name);
+  if (!contactCols2.includes('client_group_id'))
+    db.exec('ALTER TABLE contacts ADD COLUMN client_group_id INTEGER');
+
+  // scope on custom_field_definitions (added 2026-05-29 phase-4)
+  const cfdCols = db.prepare('PRAGMA table_info(custom_field_definitions)').all().map(c => c.name);
+  if (!cfdCols.includes('scope'))
+    db.exec("ALTER TABLE custom_field_definitions ADD COLUMN scope TEXT NOT NULL DEFAULT 'engagement'");
+
+  // project_custom_field_values table (added 2026-05-29 phase-4)
+  const pcfvTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='project_custom_field_values'").get();
+  if (!pcfvTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS project_custom_field_values (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        field_definition_id INTEGER NOT NULL,
+        value TEXT,
+        UNIQUE(project_id, field_definition_id),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
+      )
+    `);
+  }
+
+  // Backfill project_id on time_entries that still have NULL (added 2026-05-29 phase-4)
+  db.exec(`
+    UPDATE time_entries
+    SET project_id = (
+      SELECT p.id FROM projects p
+      WHERE p.engagement_id = time_entries.engagement_id
+      ORDER BY p.created_at DESC LIMIT 1
+    )
+    WHERE project_id IS NULL
+  `);
+
+  // Backfill project_id on billing_records that still have NULL (added 2026-05-29 phase-4)
+  db.exec(`
+    UPDATE billing_records
+    SET project_id = (
+      SELECT p.id FROM projects p
+      WHERE p.engagement_id = billing_records.engagement_id
+      ORDER BY p.created_at DESC LIMIT 1
+    )
+    WHERE project_id IS NULL
+  `);
 
   // pay_period_user_status table (added 2026-05-21)
   const ppusTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pay_period_user_status'").get();

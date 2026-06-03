@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { projectsApi } from '../api/projects'
 import { subtasksApi } from '../api/subtasks'
@@ -7,7 +7,7 @@ import { activityApi } from '../api/activity'
 import { timeEntriesApi } from '../api/timeEntries'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
-import { PROJECT_STATUSES } from '../config/projectStatuses'
+import { useStatuses, makeStatusStyle } from '../context/StatusesContext'
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
@@ -20,21 +20,32 @@ import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 
-const STATUS_STYLE = {
-  'Not Started':     { bg: 'bg-gray-100',   text: 'text-gray-600',   dot: 'bg-gray-400'   },
-  'In Progress':     { bg: 'bg-blue-50',    text: 'text-blue-700',   dot: 'bg-blue-500'   },
-  'Awaiting Client': { bg: 'bg-amber-50',   text: 'text-amber-700',  dot: 'bg-amber-500'  },
-  'In Review':       { bg: 'bg-purple-50',  text: 'text-purple-700', dot: 'bg-purple-500' },
-  'Extension Filed': { bg: 'bg-orange-50',  text: 'text-orange-700', dot: 'bg-orange-500' },
-  'Completed':       { bg: 'bg-emerald-50', text: 'text-emerald-700',dot: 'bg-emerald-500'},
-  'Delivered':       { bg: 'bg-teal-50',    text: 'text-teal-700',   dot: 'bg-teal-500'   },
+// Legacy fallback colors — only used if context hasn't loaded yet
+const FALLBACK_COLORS = {
+  'Not Started': '#94A3B8', 'In Progress': '#3B82F6', 'Awaiting Client': '#F59E0B',
+  'In Review': '#8B5CF6', 'Extension Filed': '#F97316', 'Completed': '#10B981', 'Delivered': '#14B8A6',
 }
 
 function StatusBadge({ status }) {
-  const s = STATUS_STYLE[status] || STATUS_STYLE['Not Started']
+  const { byLabel } = useStatuses()
+  const color = byLabel[status]?.color || FALLBACK_COLORS[status] || '#94A3B8'
+  const s = makeStatusStyle(color)
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${s.bg} ${s.text}`}>
-      <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium"
+      style={{ ...s.bgStyle, ...s.textStyle }}>
+      <span className="w-2 h-2 rounded-full" style={s.dotStyle} />
+      {status}
+    </span>
+  )
+}
+
+function InlineStatusBadge({ status }) {
+  const { byLabel } = useStatuses()
+  const color = byLabel[status]?.color || FALLBACK_COLORS[status] || '#94A3B8'
+  const s = makeStatusStyle(color)
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ ...s.bgStyle, ...s.textStyle }}>
       {status}
     </span>
   )
@@ -86,24 +97,81 @@ function BudgetPanel({ budgetedHours, budgetedAmount, actualHours, actualAmount 
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function OverviewTab({ project, onUpdate }) {
+function MilestonesPanel({ project }) {
   const toast = useToast()
-  const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({})
+  const [fields, setFields] = useState([])
+  const [values, setValues] = useState({})  // fieldId → value string
+  const saveTimer = useRef({})
 
-  const startEdit = () => { setForm({ ...project }); setEditing(true) }
-  const cancelEdit = () => setEditing(false)
+  useEffect(() => {
+    projectsApi.milestoneFields().then(setFields).catch(() => {})
+    projectsApi.getMilestones(project.id)
+      .then(rows => {
+        const map = {}
+        rows.forEach(r => { map[r.field_definition_id] = r.value ?? '' })
+        setValues(map)
+      })
+      .catch(() => {})
+  }, [project.id])
 
-  const save = async () => {
-    try {
-      const updated = await projectsApi.update(project.id, form)
-      onUpdate(updated)
-      setEditing(false)
-      toast.success('Project updated')
-    } catch {
-      toast.error('Failed to save')
-    }
+  const saveVal = (fieldId, val) => {
+    clearTimeout(saveTimer.current[fieldId])
+    saveTimer.current[fieldId] = setTimeout(() => {
+      projectsApi.saveMilestone(project.id, fieldId, val || null)
+        .catch(() => toast.error('Failed to save milestone'))
+    }, 600)
   }
+
+  const handleChange = (fieldId, val) => {
+    setValues(v => ({ ...v, [fieldId]: val }))
+    saveVal(fieldId, val)
+  }
+
+  if (fields.length === 0) return null
+
+  const inp = 'border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-accent'
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 mt-4">
+      <h3 className="font-medium text-gray-900 mb-4">Milestones</h3>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        {fields.map(f => {
+          const val = values[f.id] ?? ''
+          return (
+            <div key={f.id} className="flex items-center justify-between gap-3">
+              <label className="text-xs text-gray-400 flex-shrink-0 w-36">{f.field_name}</label>
+              {f.field_type === 'Date' && (
+                <input type="date" value={val} onChange={e => handleChange(f.id, e.target.value)} className={inp} />
+              )}
+              {f.field_type === 'Checkbox' && (
+                <input type="checkbox" checked={val === '1' || val === 'true' || val === 'Yes'}
+                  onChange={e => handleChange(f.id, e.target.checked ? '1' : '')}
+                  className="rounded border-gray-300 accent-accent h-4 w-4" />
+              )}
+              {f.field_type === 'Dropdown' && (() => {
+                let opts = []
+                try { opts = JSON.parse(f.dropdown_options || '[]') } catch {}
+                return (
+                  <select value={val} onChange={e => handleChange(f.id, e.target.value)} className={inp}>
+                    <option value="">—</option>
+                    {opts.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                )
+              })()}
+              {f.field_type === 'Text' && (
+                <input type="text" value={val} onChange={e => handleChange(f.id, e.target.value)}
+                  placeholder="—" className={inp} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function OverviewTab({ project, onUpdate }) {
+  const navigate = useNavigate()
 
   const Field = ({ label, value }) => (
     <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
@@ -111,63 +179,6 @@ function OverviewTab({ project, onUpdate }) {
       <dd className="text-sm text-gray-800 text-right">{value || <span className="text-gray-300">—</span>}</dd>
     </div>
   )
-
-  if (editing) {
-    const inp = 'border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-accent'
-    const sel = inp
-    return (
-      <div className="space-y-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="font-medium text-gray-900 mb-4">Edit Project</h3>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              ['period_label','Period / Year','text'],
-              ['project_type','Project Type','text'],
-              ['entity_type','Entity Type','text'],
-              ['client_number','Client #','text'],
-              ['engagement_number','Engagement #','text'],
-              ['fiscal_year_end','Fiscal Year End','date'],
-              ['original_due','Original Due','date'],
-              ['current_due','Current Due','date'],
-              ['start_date','Start Date','date'],
-              ['completed_date','Completed Date','date'],
-              ['delivered_date','Delivered Date','date'],
-              ['budgeted_hours','Budget Hours','number'],
-              ['budgeted_amount','Budget $','number'],
-            ].map(([k, label, type]) => (
-              <div key={k}>
-                <label className="text-xs text-gray-400 mb-1 block">{label}</label>
-                <input type={type} value={form[k] || ''} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} className={inp} />
-              </div>
-            ))}
-            {[['primary_partner','Primary Partner'],['manager','Manager'],['preparer','Preparer'],['reviewer','Reviewer'],['in_charge','In Charge']].map(([k, label]) => (
-              <div key={k}>
-                <label className="text-xs text-gray-400 mb-1 block">{label}</label>
-                <select value={form[k] || ''} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} className={sel}>
-                  <option value="">—</option>
-                  {['Marcus Maurer','Sofia Graf','Diego Rivera','Carson'].map(n => <option key={n}>{n}</option>)}
-                </select>
-              </div>
-            ))}
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">Priority</label>
-              <select value={form.priority || 'Normal'} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className={sel}>
-                {['Low','Normal','High'].map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-            <div className="flex items-center gap-2 col-span-2 pt-1">
-              <input type="checkbox" id="extended" checked={!!form.extended} onChange={e => setForm(f => ({ ...f, extended: e.target.checked ? 1 : 0 }))} className="rounded border-gray-300 accent-accent" />
-              <label htmlFor="extended" className="text-sm text-gray-700 cursor-pointer">Extension Filed</label>
-            </div>
-          </div>
-          <div className="flex gap-2 mt-5">
-            <button onClick={cancelEdit} className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button onClick={save} className="px-5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700">Save Changes</button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const over = isOverdue(project)
 
@@ -178,7 +189,7 @@ function OverviewTab({ project, onUpdate }) {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-gray-900">Project Details</h3>
-            <button onClick={startEdit} className="flex items-center gap-1 text-xs text-gray-400 hover:text-accent">
+            <button onClick={() => navigate(`/projects/${project.id}/edit`)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-accent">
               <PencilSquareIcon className="w-3.5 h-3.5" /> Edit
             </button>
           </div>
@@ -212,6 +223,9 @@ function OverviewTab({ project, onUpdate }) {
             <Field label="Delivered" value={project.delivered_date} />
           </dl>
         </div>
+
+        {/* Milestones */}
+        <MilestonesPanel project={project} />
 
         {/* Budget */}
         {(project.budgeted_hours || project.budgeted_amount) && (
@@ -291,22 +305,22 @@ function StatusChanger({ project, onUpdate }) {
     }
   }
 
+  const { activeStatuses } = useStatuses()
   return (
     <div className="space-y-1.5">
-      {PROJECT_STATUSES.map(({ key }) => {
-        const s = STATUS_STYLE[key] || STATUS_STYLE['Not Started']
-        const active = project.status === key
+      {activeStatuses.map(({ label, color }) => {
+        const s = makeStatusStyle(color)
+        const active = project.status === label
         return (
           <button
-            key={key}
-            onClick={() => change(key)}
+            key={label}
+            onClick={() => change(label)}
             disabled={loading}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
-              active ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-current/20` : 'text-gray-500 hover:bg-gray-50'
-            }`}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${active ? 'ring-2 ring-offset-1' : 'text-gray-500 hover:bg-gray-50'}`}
+            style={active ? { ...s.bgStyle, ...s.textStyle } : {}}
           >
-            <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-            {key}
+            <span className="w-2 h-2 rounded-full" style={s.dotStyle} />
+            {label}
             {active && <span className="ml-auto text-xs">✓</span>}
           </button>
         )
@@ -561,15 +575,7 @@ function HistoryTab({ project }) {
 
   if (loading) return <div className="text-sm text-gray-400 p-4">Loading…</div>
 
-  const STATUS_STYLE_MAP = {
-    'Not Started': 'bg-gray-100 text-gray-600',
-    'In Progress': 'bg-blue-50 text-blue-700',
-    'Awaiting Client': 'bg-amber-50 text-amber-700',
-    'In Review': 'bg-purple-50 text-purple-700',
-    'Extension Filed': 'bg-orange-50 text-orange-700',
-    'Completed': 'bg-emerald-50 text-emerald-700',
-    'Delivered': 'bg-teal-50 text-teal-700',
-  }
+  // HistoryTab uses context-driven colors for status badges
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -604,7 +610,7 @@ function HistoryTab({ project }) {
                         {isCurrent && <span className="text-xs text-accent font-medium">← current</span>}
                         {p.extended === 1 && <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">EXT</span>}
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE_MAP[p.status] || 'bg-gray-100 text-gray-600'}`}>{p.status}</span>
+                      <InlineStatusBadge status={p.status} />
                     </div>
                     <div className="flex gap-4 mt-2 text-xs text-gray-400">
                       {p.original_due && <span>Due: <span className="text-gray-600">{p.original_due}</span></span>}

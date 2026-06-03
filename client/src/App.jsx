@@ -1,7 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { TimerProvider }   from './context/TimerContext'
-import { ToastProvider }   from './context/ToastContext'
-import { AuthProvider }    from './context/AuthContext'
+import { TimerProvider }    from './context/TimerContext'
+import { ToastProvider }    from './context/ToastContext'
+import { AuthProvider }     from './context/AuthContext'
+import { StatusesProvider } from './context/StatusesContext'
 import ProtectedRoute      from './components/ProtectedRoute'
 import Layout              from './components/Layout'
 import Login               from './pages/Login'
@@ -24,11 +25,13 @@ import Contacts            from './pages/Contacts'
 import ContactDetail       from './pages/ContactDetail'
 import Projects            from './pages/Projects'
 import ProjectDetail       from './pages/ProjectDetail'
+import ProjectForm         from './pages/ProjectForm'
 import ByClientView        from './pages/ByClientView'
 
 export default function App() {
   return (
     <AuthProvider>
+      <StatusesProvider>
       <TimerProvider>
         <ToastProvider>
           <Routes>
@@ -49,8 +52,11 @@ export default function App() {
               <Route path="contacts"             element={<Contacts />} />
               <Route path="contacts/:id"         element={<ContactDetail />} />
               <Route path="projects"                           element={<Projects />} />
+              <Route path="projects/new"                   element={<ProjectForm />} />
               <Route path="projects/by-client/:clientName" element={<ByClientView />} />
+              <Route path="projects/:id/edit"              element={<ProjectForm />} />
               <Route path="projects/:id"                   element={<ProjectDetail />} />
+              {/* Engagement routes kept for direct-link compatibility but not in nav */}
               <Route path="engagements"          element={<Engagements />} />
               <Route path="engagements/new"      element={<EngagementForm />} />
               <Route path="engagements/:id"      element={<EngagementDetail />} />
@@ -77,6 +83,7 @@ export default function App() {
           </Routes>
         </ToastProvider>
       </TimerProvider>
+      </StatusesProvider>
     </AuthProvider>
   )
 }

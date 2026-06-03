@@ -51,4 +51,31 @@ router.post('/values/:engagementId', (req, res) => {
   res.status(200).json({ ok: true });
 });
 
+// ── Project-scoped custom field endpoints ─────────────────────────────────────
+router.get('/definitions/project', (req, res) => {
+  res.json(db.prepare(
+    "SELECT * FROM custom_field_definitions WHERE scope='project' ORDER BY sort_order ASC"
+  ).all());
+});
+
+router.get('/project-values/:projectId', (req, res) => {
+  res.json(db.prepare(`
+    SELECT pcfv.*, cfd.field_name, cfd.field_type, cfd.dropdown_options
+    FROM project_custom_field_values pcfv
+    JOIN custom_field_definitions cfd ON cfd.id = pcfv.field_definition_id
+    WHERE pcfv.project_id = ?
+  `).all(req.params.projectId));
+});
+
+router.post('/project-values/:projectId', (req, res) => {
+  const { field_definition_id, value } = req.body;
+  if (!field_definition_id) return res.status(400).json({ error: 'field_definition_id required' });
+  db.prepare(`
+    INSERT INTO project_custom_field_values (project_id, field_definition_id, value)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id, field_definition_id) DO UPDATE SET value = excluded.value
+  `).run(req.params.projectId, field_definition_id, value ?? null);
+  res.json({ ok: true });
+});
+
 module.exports = router;

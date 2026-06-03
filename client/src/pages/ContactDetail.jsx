@@ -10,6 +10,7 @@ import { contactsApi } from '../api/contacts'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ContactForm from './contacts/ContactForm'
+import { UsersIcon } from '@heroicons/react/24/outline'
 
 const STATUS_COLORS = {
   active:   'bg-green-100 text-green-700',
@@ -164,6 +165,57 @@ export default function ContactDetail() {
   async function handleRemoveTag(tag) {
     const res = await contactsApi.removeTag(id, tag)
     setContact(c => ({ ...c, tags: res.tags }))
+  }
+
+  // ── Client group management ─────────────────────────────────────────────────
+  const [groupMembers, setGroupMembers] = useState([])
+  const [groupSearch, setGroupSearch] = useState('')
+  const [groupResults, setGroupResults] = useState([])
+  const [groupBusy, setGroupBusy] = useState(false)
+
+  useEffect(() => {
+    if (contact?.client_group_id) {
+      contactsApi.groupMembers(id).then(setGroupMembers).catch(() => {})
+    } else {
+      setGroupMembers([])
+    }
+  }, [id, contact?.client_group_id])
+
+  const searchGroupContacts = async (q) => {
+    setGroupSearch(q)
+    if (!q.trim()) { setGroupResults([]); return }
+    const res = await contactsApi.list({ search: q })
+    setGroupResults(res.filter(r => r.id !== Number(id)).slice(0, 6))
+  }
+
+  const handleJoinGroup = async (targetContact) => {
+    setGroupBusy(true)
+    try {
+      // Determine group_id: use target's group if they have one, else create new one
+      const groupId = targetContact.client_group_id || 'new'
+      await contactsApi.setGroup(id, groupId)
+      // Also ensure target is in a group if they weren't
+      if (!targetContact.client_group_id) {
+        const refreshedSelf = await contactsApi.get(id)
+        await contactsApi.setGroup(targetContact.id, refreshedSelf.client_group_id)
+      }
+      setGroupSearch(''); setGroupResults([])
+      addToast('Added to client group', 'success')
+      load()
+    } catch { addToast('Failed to update group', 'error') }
+    finally { setGroupBusy(false) }
+  }
+
+  const handleLeaveGroup = async () => {
+    if (!confirm('Remove this contact from its client group?')) return
+    setGroupBusy(true)
+    try {
+      await contactsApi.setGroup(id, null)
+      setGroupMembers([])
+      addToast('Removed from group', 'success')
+      load()
+    } catch { addToast('Failed to update group', 'error') }
+    finally { setGroupBusy(false) }
   }
 
   async function searchAffiliates() {
@@ -344,14 +396,86 @@ export default function ContactDetail() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
           {activeTab === 'overview' && (
-            <OverviewTab
-              contact={contact}
-              sensitive={sensitive}
-              revealed={revealed}
-              onReveal={revealSensitive}
-              onNotesChange={notes => setContact(c => ({ ...c, notes }))}
-              onNotesSave={notes => contactsApi.update(id, { notes })}
-            />
+            <>
+              <OverviewTab
+                contact={contact}
+                sensitive={sensitive}
+                revealed={revealed}
+                onReveal={revealSensitive}
+                onNotesChange={notes => setContact(c => ({ ...c, notes }))}
+                onNotesSave={notes => contactsApi.update(id, { notes })}
+              />
+              {/* ── Client Group Panel ── */}
+              <div className="mt-4 bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm text-gray-900 flex items-center gap-2">
+                    <UsersIcon className="w-4 h-4 text-gray-400" />
+                    Client Group
+                    {contact.client_group_id && (
+                      <span className="text-xs font-mono text-gray-400">Group {contact.client_group_id}</span>
+                    )}
+                  </h3>
+                  {contact.client_group_id && (
+                    <button onClick={handleLeaveGroup} disabled={groupBusy}
+                      className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50">
+                      Leave group
+                    </button>
+                  )}
+                </div>
+
+                {contact.client_group_id ? (
+                  <div>
+                    {groupMembers.length > 0 ? (
+                      <div className="space-y-1.5 mb-3">
+                        {groupMembers.map(m => (
+                          <div key={m.id} className="flex items-center gap-2 text-sm">
+                            <span className="w-2 h-2 rounded-full bg-accent/40 flex-shrink-0" />
+                            <button onClick={() => navigate(`/contacts/${m.id}`)}
+                              className="text-accent hover:underline truncate">
+                              {m.display_name || m.business_name}
+                            </button>
+                            <span className="text-xs text-gray-400 flex-shrink-0">{m.type}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 mb-3">No other members in this group yet.</p>
+                    )}
+                    <p className="text-xs text-gray-400">
+                      Projects for all group members show together when "Show related entities" is toggled in the Projects grid.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Link this contact to a client group to see all their related entities' projects together.
+                    </p>
+                    <div className="relative">
+                      <input
+                        value={groupSearch}
+                        onChange={e => searchGroupContacts(e.target.value)}
+                        placeholder="Search another client to group with…"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                      {groupResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                          {groupResults.map(r => (
+                            <button key={r.id} type="button" onClick={() => handleJoinGroup(r)}
+                              disabled={groupBusy}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
+                              <span className="text-gray-900">{r.display_name || r.business_name}</span>
+                              <span className="text-xs text-gray-400">
+                                {r.client_group_id ? `Join group ${r.client_group_id}` : 'Create new group'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
           {activeTab === 'engagements' && <EngagementsTab contact={contact} />}
           {activeTab === 'time & billing' && <TimeBillingTab contact={contact} />}

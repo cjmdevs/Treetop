@@ -313,25 +313,86 @@ export default function Settings() {
     return acc
   }, {})
 
-  return (
-    <div className="p-8 max-w-5xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
+  // Sidebar nav structure
+  const NAV = [
+    {
+      section: 'Projects',
+      hint: 'Workflow, statuses, and project-level configuration',
+      items: [
+        { key: 'fields',      label: 'Custom Fields',  hint: 'Extra fields on every engagement', visible: true },
+        { key: 'automations', label: 'Automations',    hint: 'Auto-rules triggered during workflows', visible: true },
+      ],
+    },
+    {
+      section: 'Contacts / Clients',
+      hint: 'Client categorization and grouping',
+      items: [
+        { key: 'client-types', label: 'Client Types', hint: 'Categorize clients (1040, 1120, Advisory…)', visible: isAdmin },
+      ],
+    },
+    {
+      section: 'Time & Billing',
+      hint: 'Service codes and staff billing rates',
+      items: [
+        { key: 'codes', label: 'Service Codes', hint: 'Codes for time entries and billing', visible: true },
+        { key: 'rates', label: 'Staff Rates',   hint: 'Hourly billing rates with effective dates', visible: true },
+      ],
+    },
+    {
+      section: 'System / Admin',
+      hint: 'User accounts and access control',
+      items: [
+        { key: 'accounts', label: 'User Accounts', hint: 'Manage logins, roles, and passwords', visible: isAdmin },
+      ],
+    },
+  ]
 
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {[
-          ['fields',        'Custom Fields',  true],
-          ['codes',         'Service Codes',  true],
-          ['rates',         'Staff Rates',    true],
-          ['automations',   'Automations',    true],
-          ['client-types',  'Client Types',   isAdmin],
-          ['accounts',      'User Accounts',  isAdmin],
-        ].filter(([,, visible]) => visible).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === key ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+  const allItems = NAV.flatMap(s => s.items).filter(i => i.visible)
+  const activeItem = allItems.find(i => i.key === tab) || allItems[0]
+
+  return (
+    <div className="flex h-full overflow-hidden">
+      {/* ── Sidebar nav ── */}
+      <aside className="w-56 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto">
+        <div className="px-4 py-5 border-b border-gray-100">
+          <h1 className="text-base font-bold text-gray-900">Settings</h1>
+        </div>
+        <nav className="py-3">
+          {NAV.map(section => {
+            const visibleItems = section.items.filter(i => i.visible)
+            if (visibleItems.length === 0) return null
+            return (
+              <div key={section.section} className="mb-4">
+                <p className="px-4 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                  {section.section}
+                </p>
+                {visibleItems.map(item => (
+                  <button
+                    key={item.key}
+                    onClick={() => setTab(item.key)}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      tab === item.key
+                        ? 'bg-accent/10 text-accent font-medium'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
+        </nav>
+      </aside>
+
+      {/* ── Content area ── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-8 py-6 max-w-4xl">
+          {/* Section header */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900">{activeItem?.label}</h2>
+            {activeItem?.hint && <p className="text-sm text-gray-400 mt-0.5">{activeItem.hint}</p>}
+          </div>
 
       {/* ── Custom Fields ────────────────────────────────────────────────────── */}
       {tab === 'fields' && (
@@ -1030,7 +1091,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── Automations ───────────────────────────────────────────────────────── */}
+      {/* ── Automations ─────────────────────────────────────────────────────── */}
       {tab === 'automations' && (
         <div>
           <div className="flex justify-between items-center mb-4">
@@ -1144,6 +1205,8 @@ export default function Settings() {
           </div>
         </div>
       )}
+        </div>{/* px-8 py-6 max-w-4xl */}
+      </div>{/* flex-1 overflow-y-auto */}
     </div>
   )
 }

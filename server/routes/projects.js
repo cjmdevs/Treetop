@@ -51,14 +51,14 @@ function doRollForward(project, eng) {
 
   const result = db.prepare(`
     INSERT INTO projects (
-      engagement_id, client_name, project_type, entity_type, period_label,
+      engagement_id, client_name, contact_id, project_type, entity_type, period_label,
       fiscal_year_end, status, original_due, current_due, extended,
       client_number, engagement_number, primary_partner, manager, preparer,
       reviewer, in_charge, budgeted_hours, budgeted_amount, priority, prior_project_id
-    ) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    project.engagement_id, project.client_name, project.project_type,
-    project.entity_type, newPeriodLabel, project.fiscal_year_end,
+    project.engagement_id, project.client_name, project.contact_id || null,
+    project.project_type, project.entity_type, newPeriodLabel, project.fiscal_year_end,
     'Not Started', newOrigDue, newCurrDue,
     project.client_number, project.engagement_number,
     project.primary_partner, project.manager, project.preparer,
@@ -104,7 +104,7 @@ router.get('/', (req, res) => {
   const {
     client_name, project_type, entity_type, status, primary_partner, manager,
     preparer, reviewer, in_charge, priority, due_from, due_to, period_label,
-    show_completed, show_delivered, sort = 'current_due', dir = 'ASC',
+    show_completed, show_delivered, show_related, sort = 'current_due', dir = 'ASC',
   } = req.query;
 
   const ALLOWED_SORT = [
@@ -127,7 +127,28 @@ router.get('/', (req, res) => {
   `;
   const params = [];
 
-  if (client_name)     { query += ' AND p.client_name LIKE ?';     params.push(`%${client_name}%`); }
+  // When show_related=true: expand client_name filter to all members of the same group
+  const isShowRelated = show_related === 'true';
+  if (isShowRelated && client_name) {
+    const anchor = db.prepare(
+      'SELECT id, client_group_id FROM contacts WHERE display_name LIKE ? LIMIT 1'
+    ).get(`%${client_name}%`);
+    if (anchor?.client_group_id) {
+      const groupMembers = db.prepare(
+        'SELECT display_name FROM contacts WHERE client_group_id = ?'
+      ).all(anchor.client_group_id);
+      const names = groupMembers.map(m => m.display_name);
+      const placeholders = names.map(() => '?').join(',');
+      query += ` AND p.client_name IN (${placeholders})`;
+      params.push(...names);
+    } else if (client_name) {
+      query += ' AND p.client_name LIKE ?';
+      params.push(`%${client_name}%`);
+    }
+  } else {
+    if (client_name) { query += ' AND p.client_name LIKE ?'; params.push(`%${client_name}%`); }
+  }
+
   if (project_type)    { query += ' AND p.project_type = ?';       params.push(project_type); }
   if (entity_type)     { query += ' AND p.entity_type = ?';        params.push(entity_type); }
   if (status)          { query += ' AND p.status = ?';             params.push(status); }
@@ -137,14 +158,16 @@ router.get('/', (req, res) => {
   if (reviewer)        { query += ' AND p.reviewer = ?';           params.push(reviewer); }
   if (in_charge)       { query += ' AND p.in_charge = ?';          params.push(in_charge); }
   if (priority)        { query += ' AND p.priority = ?';           params.push(priority); }
-  if (due_from)        { query += ' AND p.current_due >= ?';       params.push(due_from); }
-  if (due_to)          { query += ' AND p.current_due <= ?';       params.push(due_to); }
-  if (period_label)    { query += ' AND p.period_label = ?';       params.push(period_label); }
-  if (!show_completed || show_completed === 'false') {
-    query += " AND p.status != 'Completed'";
+  // When show_related is ON, skip date filters so all years show
+  if (!isShowRelated) {
+    if (due_from) { query += ' AND p.current_due >= ?'; params.push(due_from); }
+    if (due_to)   { query += ' AND p.current_due <= ?'; params.push(due_to); }
   }
-  if (!show_delivered || show_delivered === 'false') {
-    query += " AND p.status != 'Delivered'";
+  if (period_label)    { query += ' AND p.period_label = ?';       params.push(period_label); }
+  // When show_related is ON, always show completed/delivered
+  if (!isShowRelated) {
+    if (!show_completed || show_completed === 'false') query += " AND p.status != 'Completed'";
+    if (!show_delivered || show_delivered === 'false') query += " AND p.status != 'Delivered'";
   }
 
   query += ` GROUP BY p.id ORDER BY p.${sortCol} ${sortDir}`;
@@ -219,7 +242,7 @@ router.get('/:id', (req, res) => {
 // ── POST /api/projects ─────────────────────────────────────────────────────────
 router.post('/', (req, res) => {
   const {
-    engagement_id, client_name, project_type, entity_type, period_label,
+    engagement_id, client_name, contact_id, project_type, entity_type, period_label,
     fiscal_year_end, status, original_due, current_due, start_date,
     delivered_date, completed_date, extended, client_number, engagement_number,
     primary_partner, manager, preparer, reviewer, in_charge,
@@ -232,14 +255,14 @@ router.post('/', (req, res) => {
 
   const result = db.prepare(`
     INSERT INTO projects (
-      engagement_id, client_name, project_type, entity_type, period_label,
+      engagement_id, client_name, contact_id, project_type, entity_type, period_label,
       fiscal_year_end, status, original_due, current_due, start_date,
       delivered_date, completed_date, extended, client_number, engagement_number,
       primary_partner, manager, preparer, reviewer, in_charge,
       budgeted_hours, budgeted_amount, priority, prior_project_id
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    engagement_id, client_name, project_type || null, entity_type || null,
+    engagement_id, client_name, contact_id || null, project_type || null, entity_type || null,
     period_label || null, fiscal_year_end || null, status || 'Not Started',
     original_due || null, current_due || original_due || null, start_date || null,
     delivered_date || null, completed_date || null, extended ? 1 : 0,
@@ -263,7 +286,7 @@ router.put('/:id', (req, res) => {
   if (!prev) return res.status(404).json({ error: 'Not found' });
 
   const {
-    client_name, project_type, entity_type, period_label, fiscal_year_end,
+    client_name, contact_id, project_type, entity_type, period_label, fiscal_year_end,
     status, original_due, current_due, start_date, delivered_date, completed_date,
     extended, client_number, engagement_number, primary_partner, manager,
     preparer, reviewer, in_charge, budgeted_hours, budgeted_amount, priority,
@@ -271,7 +294,7 @@ router.put('/:id', (req, res) => {
 
   db.prepare(`
     UPDATE projects SET
-      client_name=?, project_type=?, entity_type=?, period_label=?, fiscal_year_end=?,
+      client_name=?, contact_id=?, project_type=?, entity_type=?, period_label=?, fiscal_year_end=?,
       status=?, original_due=?, current_due=?, start_date=?, delivered_date=?,
       completed_date=?, extended=?, client_number=?, engagement_number=?,
       primary_partner=?, manager=?, preparer=?, reviewer=?, in_charge=?,
@@ -280,6 +303,7 @@ router.put('/:id', (req, res) => {
     WHERE id=?
   `).run(
     client_name       ?? prev.client_name,
+    contact_id !== undefined ? (contact_id || null) : prev.contact_id,
     project_type      ?? prev.project_type,
     entity_type       ?? prev.entity_type,
     period_label      ?? prev.period_label,

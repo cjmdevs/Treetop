@@ -7,6 +7,7 @@ import {
   BuildingOffice2Icon, UserIcon, TagIcon, CheckCircleIcon,
 } from '@heroicons/react/24/outline'
 import { contactsApi } from '../api/contacts'
+import { clientGroupsApi } from '../api/clientGroups'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ContactForm from './contacts/ContactForm'
@@ -118,6 +119,13 @@ export default function ContactDetail() {
   const [tagInput, setTagInput] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
 
+  // Group management
+  const [groupModal, setGroupModal]     = useState(null) // null | 'create' | 'join'
+  const [newGroupName, setNewGroupName] = useState('')
+  const [allGroups, setAllGroups]       = useState([])
+  const [joinGroupId, setJoinGroupId]   = useState('')
+  const [groupSaving, setGroupSaving]   = useState(false)
+
   const load = useCallback(() => {
     setLoading(true)
     contactsApi.get(id).then(setContact).finally(() => setLoading(false))
@@ -189,6 +197,47 @@ export default function ContactDetail() {
   function handleEditSaved(saved) {
     setShowEdit(false)
     load()
+  }
+
+  async function openGroupModal(mode) {
+    setGroupModal(mode)
+    setNewGroupName('')
+    setJoinGroupId('')
+    if (mode === 'join') {
+      const groups = await clientGroupsApi.list()
+      setAllGroups(groups)
+    }
+  }
+
+  async function handleCreateGroup() {
+    if (!newGroupName.trim()) return
+    setGroupSaving(true)
+    try {
+      const group = await clientGroupsApi.create({ name: newGroupName.trim() })
+      await clientGroupsApi.addMember(group.id, id)
+      setGroupModal(null)
+      load()
+      addToast('Group created', 'success')
+    } finally { setGroupSaving(false) }
+  }
+
+  async function handleJoinGroup() {
+    if (!joinGroupId) return
+    setGroupSaving(true)
+    try {
+      await clientGroupsApi.addMember(joinGroupId, id)
+      setGroupModal(null)
+      load()
+      addToast('Added to group', 'success')
+    } finally { setGroupSaving(false) }
+  }
+
+  async function handleLeaveGroup() {
+    if (!contact.client_group_id) return
+    if (!confirm('Remove this client from the group?')) return
+    await clientGroupsApi.removeMember(contact.client_group_id, id)
+    load()
+    addToast('Removed from group', 'success')
   }
 
   if (loading) return (
@@ -304,6 +353,92 @@ export default function ContactDetail() {
             )}
           </div>
         </div>
+
+        {/* Client Group */}
+        <div className="px-5 py-3 border-t border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Client Group</p>
+          {contact.client_group ? (
+            <div>
+              <p className="text-xs font-semibold text-gray-800 mb-1.5">{contact.client_group.name}</p>
+              <div className="space-y-1 mb-2">
+                {(contact.group_members || []).map(m => (
+                  <Link
+                    key={m.id}
+                    to={`/contacts/${m.id}`}
+                    className={`flex items-center gap-1.5 text-xs ${m.id === Number(id) ? 'text-accent font-medium' : 'text-gray-600 hover:text-accent'}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${m.id === Number(id) ? 'bg-accent' : 'bg-gray-300'}`} />
+                    {m.display_name}
+                  </Link>
+                ))}
+              </div>
+              <button onClick={handleLeaveGroup} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                Leave group
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => openGroupModal('create')} className="text-xs text-accent hover:underline">
+                + Create group
+              </button>
+              <span className="text-gray-300 text-xs">·</span>
+              <button onClick={() => openGroupModal('join')} className="text-xs text-accent hover:underline">
+                Join group
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Group modal */}
+        {groupModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setGroupModal(null)}>
+            <div className="bg-white rounded-2xl shadow-xl w-80 p-6" onClick={e => e.stopPropagation()}>
+              {groupModal === 'create' ? (
+                <>
+                  <h3 className="font-semibold text-gray-900 mb-4">Create Client Group</h3>
+                  <input
+                    autoFocus
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleCreateGroup()}
+                    placeholder="Group name…"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent mb-4"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => setGroupModal(null)} className="flex-1 px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleCreateGroup} disabled={groupSaving || !newGroupName.trim()} className="flex-1 px-3 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                      {groupSaving ? 'Creating…' : 'Create'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-semibold text-gray-900 mb-4">Join Existing Group</h3>
+                  {allGroups.length === 0 ? (
+                    <p className="text-sm text-gray-400 mb-4">No groups exist yet. Create one first.</p>
+                  ) : (
+                    <select
+                      value={joinGroupId}
+                      onChange={e => setJoinGroupId(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent mb-4"
+                    >
+                      <option value="">Select group…</option>
+                      {allGroups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name} ({g.member_count} members)</option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => setGroupModal(null)} className="flex-1 px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleJoinGroup} disabled={groupSaving || !joinGroupId} className="flex-1 px-3 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                      {groupSaving ? 'Joining…' : 'Join'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="px-5 py-4 border-t border-gray-100 space-y-2 mt-auto">

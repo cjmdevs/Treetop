@@ -23,6 +23,7 @@ import DueDates            from './pages/DueDates'
 import Contacts            from './pages/Contacts'
 import ContactDetail       from './pages/ContactDetail'
 import Projects            from './pages/Projects'
+import ProjectNew          from './pages/ProjectNew'
 import ProjectDetail       from './pages/ProjectDetail'
 import ByClientView        from './pages/ByClientView'
 
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="contacts"             element={<Contacts />} />
               <Route path="contacts/:id"         element={<ContactDetail />} />
               <Route path="projects"                           element={<Projects />} />
+              <Route path="projects/new"                   element={<ProjectNew />} />
               <Route path="projects/by-client/:clientName" element={<ByClientView />} />
               <Route path="projects/:id"                   element={<ProjectDetail />} />
               <Route path="engagements"          element={<Engagements />} />

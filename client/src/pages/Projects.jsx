@@ -534,6 +534,7 @@ export default function Projects() {
   const [filters, setFilters]             = useState(EMPTY_FILTERS)
   const [showCompleted, setShowCompleted] = useState(false)
   const [showDelivered, setShowDelivered] = useState(false)
+  const [showRelated, setShowRelated]     = useState(false)
   const [selectedCols, setSelectedCols]   = useState(DEFAULT_COLS)
   const [showColConfig, setShowColConfig] = useState(false)
   const [showFilters, setShowFilters]     = useState(true)
@@ -576,6 +577,7 @@ export default function Projects() {
         ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
         show_completed: showCompleted ? 'true' : 'false',
         show_delivered: showDelivered ? 'true' : 'false',
+        ...(showRelated && filters.client_name ? { show_related: 'true' } : {}),
       }
       // Staff: fetch by each of their roles and merge
       if (user?.role === 'staff') {
@@ -599,12 +601,12 @@ export default function Projects() {
     } finally {
       setLoading(false)
     }
-  }, [filters, showCompleted, showDelivered, user])
+  }, [filters, showCompleted, showDelivered, showRelated, user])
 
   useEffect(() => { load() }, [load])
 
   const setFilter = (k) => (e) => setFilters(f => ({ ...f, [k]: e.target.value }))
-  const clearFilters = () => setFilters(EMPTY_FILTERS)
+  const clearFilters = () => { setFilters(EMPTY_FILTERS); setShowRelated(false) }
   const hasActiveFilters = Object.values(filters).some(v => v)
 
   const handleStatusChange = async (projectId, newStatus) => {
@@ -762,6 +764,17 @@ export default function Projects() {
             <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
               <input type="checkbox" checked={showDelivered} onChange={e => setShowDelivered(e.target.checked)} className="rounded border-gray-300 accent-accent" />
               Show Delivered
+            </label>
+
+            <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${filters.client_name ? 'text-gray-600' : 'text-gray-300 cursor-not-allowed'}`}>
+              <input
+                type="checkbox"
+                checked={showRelated}
+                disabled={!filters.client_name}
+                onChange={e => setShowRelated(e.target.checked)}
+                className="rounded border-gray-300 accent-accent"
+              />
+              Show all related
             </label>
 
             {hasActiveFilters && (

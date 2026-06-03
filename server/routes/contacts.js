@@ -143,6 +143,15 @@ router.get('/:id', (req, res) => {
     ).get(contact.referred_by_contact_id);
   }
 
+  let client_group = null;
+  let group_members = [];
+  if (contact.client_group_id) {
+    client_group = db.prepare('SELECT * FROM client_groups WHERE id = ?').get(contact.client_group_id);
+    group_members = db.prepare(
+      'SELECT id, display_name, type, status, client_code FROM contacts WHERE client_group_id = ? ORDER BY display_name ASC'
+    ).all(contact.client_group_id);
+  }
+
   res.json({
     ...applyMasks(contact),
     assignments,
@@ -151,6 +160,8 @@ router.get('/:id', (req, res) => {
     activity,
     engagements,
     referred_by_contact,
+    client_group,
+    group_members,
   });
 });
 
@@ -273,6 +284,7 @@ router.put('/:id', (req, res) => {
       phone_1=?, phone_1_label=?, phone_2=?, phone_2_label=?, phone_3=?, phone_3_label=?, fax=?,
       email_primary=?, email_secondary=?, website=?,
       referral_source=?, referred_by_contact_id=?, naic_code=?, line_of_business=?, department=?, notes=?,
+      client_group_id=?,
       updated_at=datetime('now')
     WHERE id=?
   `).run(
@@ -291,6 +303,7 @@ router.put('/:id', (req, res) => {
     nullable('email_primary'), nullable('email_secondary'), nullable('website'),
     nullable('referral_source'), nullable('referred_by_contact_id'),
     nullable('naic_code'), nullable('line_of_business'), nullable('department'), nullable('notes'),
+    b.client_group_id !== undefined ? (b.client_group_id || null) : prev.client_group_id,
     req.params.id
   );
 

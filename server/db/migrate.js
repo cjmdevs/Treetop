@@ -192,6 +192,38 @@ function migrate() {
     `);
   }
 
+  // client_groups table (added 2026-06-03)
+  const cgTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='client_groups'").get();
+  if (!cgTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS client_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+
+  // client_group_id on contacts (added 2026-06-03)
+  const contactCols2 = db.prepare('PRAGMA table_info(contacts)').all().map(c => c.name);
+  if (!contactCols2.includes('client_group_id'))
+    db.exec('ALTER TABLE contacts ADD COLUMN client_group_id INTEGER REFERENCES client_groups(id) ON DELETE SET NULL');
+
+  // contact_id on projects (added 2026-06-03) — FK to contacts
+  const projectCols = db.prepare('PRAGMA table_info(projects)').all().map(c => c.name);
+  if (!projectCols.includes('contact_id'))
+    db.exec('ALTER TABLE projects ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL');
+
+  // Backfill projects.contact_id from contacts.display_name matching projects.client_name
+  db.exec(`
+    UPDATE projects
+    SET contact_id = (
+      SELECT id FROM contacts WHERE display_name = projects.client_name LIMIT 1
+    )
+    WHERE contact_id IS NULL
+  `);
+
   // pay_period_user_status table (added 2026-05-21)
   const ppusTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pay_period_user_status'").get();
   if (!ppusTable) {

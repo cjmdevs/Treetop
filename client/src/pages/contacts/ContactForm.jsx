@@ -234,7 +234,12 @@ export default function ContactForm({ contact, onSave, onClose }) {
         .map(([fieldId, value]) =>
           customFieldsApi.setContactValue(saved.id, { field_definition_id: Number(fieldId), value })
         )
-      await Promise.all(cfSaves).catch(() => {})
+      try {
+        await Promise.all(cfSaves)
+      } catch (cfErr) {
+        console.error('[ContactForm] custom field save error:', cfErr)
+        addToast('Contact saved, but one or more custom fields failed to save', 'error')
+      }
       addToast(isEdit ? 'Contact updated' : 'Contact created', 'success')
       onSave(saved)
     } catch (err) {

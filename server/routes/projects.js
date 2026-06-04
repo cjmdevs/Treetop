@@ -305,6 +305,13 @@ router.post('/', (req, res) => {
 
     if (existing) {
       engagement_id = existing.id;
+      // Propagate recurrence_frequency to the existing engagement if provided,
+      // so creating a new project year doesn't leave a stale recurrence value.
+      if (recurrence_frequency) {
+        db.prepare(
+          'UPDATE engagements SET recurrence_frequency = ? WHERE id = ?'
+        ).run(recurrence_frequency, existing.id);
+      }
     } else {
       const r = db.prepare(`
         INSERT INTO engagements

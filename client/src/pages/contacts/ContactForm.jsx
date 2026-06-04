@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { contactsApi } from '../../api/contacts'
 import { usersApi } from '../../api/users'
+import { customFieldsApi } from '../../api/customFields'
 import { useToast } from '../../context/ToastContext'
 
 const ENTITY_TYPES = ['LLC', 'S-Corp', 'C-Corp', 'Partnership', 'Sole Proprietor', 'Non-Profit', 'Trust', 'Estate', 'Other']
@@ -38,6 +39,8 @@ export default function ContactForm({ contact, onSave, onClose }) {
   const isEdit = !!contact
   const [mailingSame, setMailingSame] = useState(false)
   const [clientTypes, setClientTypes] = useState([])
+  const [contactFields, setContactFields] = useState([])      // custom field definitions
+  const [customValues, setCustomValues] = useState({})        // fieldId → string value
 
   const [form, setForm] = useState(() => ({
     type: 'individual',
@@ -82,6 +85,7 @@ export default function ContactForm({ contact, onSave, onClose }) {
     line_of_business: '',
     department: '',
     notes: '',
+    contact_person: '',
     tags: [],
     assignments: STAFF_ROLES.map(role => ({ role, user_id: '' })),
   }))
@@ -89,6 +93,7 @@ export default function ContactForm({ contact, onSave, onClose }) {
   useEffect(() => {
     usersApi.list().then(data => setUsers(Array.isArray(data) ? data.filter(u => u.active) : []))
     contactsApi.metaClientTypes().then(d => setClientTypes(d.types || []))
+    customFieldsApi.listContactFields().then(setContactFields).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -136,12 +141,23 @@ export default function ContactForm({ contact, onSave, onClose }) {
       line_of_business: contact.line_of_business || '',
       department: contact.department || '',
       notes: contact.notes || '',
+      contact_person: contact.contact_person || '',
       tags: contact.tags || [],
       assignments: STAFF_ROLES.map(role => {
         const found = (contact.assignments || []).find(a => a.role === role)
         return { role, user_id: found ? String(found.user_id) : '' }
       }),
     })
+    // Load existing custom field values for this contact
+    if (contact.id) {
+      customFieldsApi.getContactValues(contact.id)
+        .then(rows => {
+          const map = {}
+          rows.forEach(r => { map[r.field_definition_id] = r.value ?? '' })
+          setCustomValues(map)
+        })
+        .catch(() => {})
+    }
   }, [contact])
 
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }))
@@ -212,6 +228,13 @@ export default function ContactForm({ contact, onSave, onClose }) {
       } else {
         saved = await contactsApi.create(payload)
       }
+      // Persist custom field values
+      const cfSaves = Object.entries(customValues)
+        .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+        .map(([fieldId, value]) =>
+          customFieldsApi.setContactValue(saved.id, { field_definition_id: Number(fieldId), value })
+        )
+      await Promise.all(cfSaves).catch(() => {})
       addToast(isEdit ? 'Contact updated' : 'Contact created', 'success')
       onSave(saved)
     } catch (err) {
@@ -484,6 +507,51 @@ export default function ContactForm({ contact, onSave, onClose }) {
           <Field label="Notes">
             <textarea className={`${input} h-24 resize-none`} value={form.notes} onChange={e => set('notes', e.target.value)} />
           </Field>
+
+          {/* ── Contact Person ── */}
+          <Field label="Contact Person" >
+            <input className={input} placeholder="Primary contact name (owner, officer, trustee…)"
+              value={form.contact_person} onChange={e => set('contact_person', e.target.value)} />
+          </Field>
+
+          {/* ── Custom Contact Fields ── */}
+          {contactFields.length > 0 && (
+            <>
+              <SectionHeader>Custom Fields</SectionHeader>
+              {contactFields.map(f => {
+                const val = customValues[f.id] ?? ''
+                const setVal = v => setCustomValues(prev => ({ ...prev, [f.id]: v }))
+                return (
+                  <Field key={f.id} label={f.field_name}>
+                    {f.field_type === 'Date' && (
+                      <input type="date" className={input} value={val} onChange={e => setVal(e.target.value)} />
+                    )}
+                    {f.field_type === 'Checkbox' && (
+                      <div className="flex items-center h-10">
+                        <input type="checkbox" className="rounded border-gray-300 text-accent focus:ring-accent h-4 w-4"
+                          checked={val === '1' || val === 'true'}
+                          onChange={e => setVal(e.target.checked ? '1' : '')} />
+                      </div>
+                    )}
+                    {f.field_type === 'Dropdown' && (() => {
+                      let opts = []
+                      try { opts = JSON.parse(f.dropdown_options || '[]') } catch {}
+                      return (
+                        <select className={select} value={val} onChange={e => setVal(e.target.value)}>
+                          <option value="">—</option>
+                          {opts.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      )
+                    })()}
+                    {(f.field_type === 'Text' || f.field_type === 'Number') && (
+                      <input type={f.field_type === 'Number' ? 'number' : 'text'} className={input}
+                        value={val} onChange={e => setVal(e.target.value)} />
+                    )}
+                  </Field>
+                )
+              })}
+            </>
+          )}
 
           <div className="h-4" />
         </form>

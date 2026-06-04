@@ -8,6 +8,7 @@ import {
   BuildingOffice2Icon, UserIcon, TagIcon, CheckCircleIcon,
 } from '@heroicons/react/24/outline'
 import { contactsApi } from '../api/contacts'
+import { customFieldsApi } from '../api/customFields'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ContactForm from './contacts/ContactForm'
@@ -108,13 +109,6 @@ export default function ContactDetail() {
   const [logOpen, setLogOpen] = useState(false)
   const [logForm, setLogForm] = useState({ activity_type: 'note', title: '', body: '' })
   const [logSaving, setLogSaving] = useState(false)
-
-  // Add affiliate
-  const [affOpen, setAffOpen] = useState(false)
-  const [affSearch, setAffSearch] = useState('')
-  const [affResults, setAffResults] = useState([])
-  const [affLabel, setAffLabel] = useState('')
-  const [affSelected, setAffSelected] = useState(null)
 
   // Inline tag add
   const [tagInput, setTagInput] = useState('')
@@ -250,26 +244,6 @@ export default function ContactDetail() {
     finally { setGroupBusy(false) }
   }
 
-  async function searchAffiliates() {
-    if (!affSearch.trim()) { setAffResults([]); return }
-    const results = await contactsApi.list({ search: affSearch })
-    setAffResults(results.filter(r => r.id !== Number(id) && !contact.affiliates?.some(a => a.affiliated_contact_id === r.id)))
-  }
-
-  async function handleAddAffiliate() {
-    if (!affSelected) return
-    const aff = await contactsApi.addAffiliate(id, { affiliated_contact_id: affSelected.id, relationship_label: affLabel || null })
-    setContact(c => ({ ...c, affiliates: [...(c.affiliates || []), aff] }))
-    setAffOpen(false); setAffSearch(''); setAffResults([]); setAffLabel(''); setAffSelected(null)
-    addToast('Affiliate added', 'success')
-  }
-
-  async function handleRemoveAffiliate(relId) {
-    await contactsApi.removeAffiliate(id, relId)
-    setContact(c => ({ ...c, affiliates: c.affiliates.filter(a => a.id !== relId) }))
-    addToast('Affiliate removed', 'success')
-  }
-
   function handleEditSaved(saved) {
     setShowEdit(false)
     load()
@@ -294,7 +268,7 @@ export default function ContactDetail() {
       ).slice(0, 8)
     : groupResults.slice(0, 8)
 
-  const tabs = ['overview', 'engagements', 'time & billing', 'affiliates', 'activity']
+  const tabs = ['overview', 'engagements', 'time & billing', 'activity']
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -548,24 +522,6 @@ export default function ContactDetail() {
           )}
           {activeTab === 'engagements' && <EngagementsTab contact={contact} />}
           {activeTab === 'time & billing' && <TimeBillingTab contact={contact} />}
-          {activeTab === 'affiliates' && (
-            <AffiliatesTab
-              contact={contact}
-              affOpen={affOpen}
-              setAffOpen={setAffOpen}
-              affSearch={affSearch}
-              setAffSearch={setAffSearch}
-              affResults={affResults}
-              affLabel={affLabel}
-              setAffLabel={setAffLabel}
-              affSelected={affSelected}
-              setAffSelected={setAffSelected}
-              onSearch={searchAffiliates}
-              onAdd={handleAddAffiliate}
-              onRemove={handleRemoveAffiliate}
-              navigate={navigate}
-            />
-          )}
           {activeTab === 'activity' && (
             <ActivityTab
               contact={contact}
@@ -593,6 +549,21 @@ export default function ContactDetail() {
 function OverviewTab({ contact, sensitive, revealed, onReveal, onNotesChange, onNotesSave }) {
   const [notesDraft, setNotesDraft] = useState(contact.notes || '')
   const [notesSaving, setNotesSaving] = useState(false)
+
+  // Custom contact field definitions + saved values for this contact (read-only display)
+  const [cfFields, setCfFields] = useState([])
+  const [cfValues, setCfValues] = useState({})  // field_definition_id → value string
+
+  useEffect(() => {
+    customFieldsApi.listContactFields().then(setCfFields).catch(() => {})
+    customFieldsApi.getContactValues(contact.id)
+      .then(rows => {
+        const map = {}
+        rows.forEach(r => { map[r.field_definition_id] = r.value ?? '' })
+        setCfValues(map)
+      })
+      .catch(() => {})
+  }, [contact.id])
 
   async function saveNotes() {
     setNotesSaving(true)
@@ -660,6 +631,7 @@ function OverviewTab({ contact, sensitive, revealed, onReveal, onNotesChange, on
       <Card title="Additional Info">
         <InfoRow label="FYE Month" value={contact.fye_month ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][contact.fye_month - 1] : null} />
         {contact.type === 'business' && <InfoRow label="Entity Type" value={contact.entity_type} />}
+        {contact.contact_person && <InfoRow label="Contact Person" value={contact.contact_person} />}
         <InfoRow label="NAIC Code" value={contact.naic_code} />
         <InfoRow label="Line of Business" value={contact.line_of_business} />
         <InfoRow label="Department" value={contact.department} />
@@ -673,6 +645,31 @@ function OverviewTab({ contact, sensitive, revealed, onReveal, onNotesChange, on
           </div>
         )}
       </Card>
+
+      {/* Custom Fields (contact-scoped) */}
+      {cfFields.length > 0 && (
+        <Card title="Custom Fields">
+          {cfFields.map(f => {
+            const raw = cfValues[f.id] ?? ''
+            let display
+            if (f.field_type === 'Checkbox') {
+              display = (raw === '1' || raw === 'true' || raw === 'Yes')
+                ? <span className="text-xs font-medium text-emerald-600">Yes</span>
+                : <span className="text-xs text-gray-300">—</span>
+            } else if (raw) {
+              display = <span className="text-xs text-gray-700 font-medium">{raw}</span>
+            } else {
+              display = <span className="text-xs text-gray-300">—</span>
+            }
+            return (
+              <div key={f.id} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
+                <span className="text-xs text-gray-500">{f.field_name}</span>
+                {display}
+              </div>
+            )
+          })}
+        </Card>
+      )}
 
       {/* Individual: sensitive info */}
       {contact.type === 'individual' && (
@@ -837,107 +834,6 @@ function TimeBillingTab({ contact }) {
               </div>
             </div>
           ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Tab: Affiliates ───────────────────────────────────────────────────────────
-
-function AffiliatesTab({ contact, affOpen, setAffOpen, affSearch, setAffSearch, affResults, affLabel, setAffLabel, affSelected, setAffSelected, onSearch, onAdd, onRemove, navigate }) {
-  const affiliates = contact.affiliates || []
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900">Affiliated Contacts</h3>
-        <button
-          onClick={() => setAffOpen(o => !o)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-blue-700"
-        >
-          <PlusIcon className="w-3.5 h-3.5" /> Add Affiliate
-        </button>
-      </div>
-
-      {affOpen && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-          <div className="flex gap-2 mb-3">
-            <input
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              placeholder="Search contacts…"
-              value={affSearch}
-              onChange={e => setAffSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && onSearch()}
-            />
-            <button onClick={onSearch} className="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200">Search</button>
-          </div>
-          {affResults.length > 0 && (
-            <div className="border border-gray-100 rounded-lg mb-3 divide-y divide-gray-50 max-h-40 overflow-y-auto">
-              {affResults.map(r => (
-                <button
-                  key={r.id}
-                  onClick={() => setAffSelected(r)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${affSelected?.id === r.id ? 'bg-blue-50 text-accent' : 'text-gray-800'}`}
-                >
-                  <span className="font-medium">{r.display_name}</span>
-                  <span className="text-xs text-gray-400 ml-2">{r.client_code}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {affSelected && (
-            <div className="flex gap-2">
-              <input
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder={`Relationship label (e.g. Owner, Trustee)…`}
-                value={affLabel}
-                onChange={e => setAffLabel(e.target.value)}
-              />
-              <button onClick={onAdd} className="px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {affiliates.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center h-32 text-gray-400 text-sm">No affiliates linked</div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Relationship</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-4 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {affiliates.map(a => (
-                <tr key={a.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <button onClick={() => navigate(`/contacts/${a.affiliated_contact_id}`)} className="font-medium text-gray-900 hover:text-accent text-left">
-                      {a.display_name}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[a.type] || 'bg-gray-100 text-gray-600'}`}>
-                      {a.type === 'individual' ? 'Individual' : 'Business'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 text-sm">{a.relationship_label || '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{a.email_primary || '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => onRemove(a.id)} className="text-gray-300 hover:text-red-500">
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
     </div>

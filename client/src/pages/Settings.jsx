@@ -158,7 +158,7 @@ export default function Settings() {
   const [psError,      setPsError]      = useState('')
 
   // ── Custom field scope — derived from nav selection ───────────────────────
-  const fieldScope = tab === 'project-fields' ? 'project' : 'engagement'
+  const fieldScope = tab === 'project-fields' ? 'project' : tab === 'contact-fields' ? 'contact' : 'engagement'
 
   const [saving, setSaving] = useState(false)
 
@@ -426,7 +426,7 @@ export default function Settings() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-gray-500">
-              {fieldScope === 'project' ? 'Add custom columns to the Projects grid.' : 'Add custom fields to every engagement / contact.'}
+              {fieldScope === 'project' ? 'Add custom columns to the Projects grid.' : fieldScope === 'contact' ? 'Add custom fields to every contact record.' : 'Add custom fields to every engagement.'}
             </p>
             <button onClick={() => { setEditingField('new'); setFieldForm({ ...BLANK_FIELD, sort_order: fields.filter(f => (f.scope||'engagement')===fieldScope).length, scope: fieldScope }) }}
               className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">

@@ -123,14 +123,7 @@ router.get('/:id', (req, res) => {
     'SELECT tag FROM contact_tags WHERE contact_id = ? ORDER BY tag ASC'
   ).all(req.params.id).map(r => r.tag);
 
-  const affiliates = db.prepare(`
-    SELECT ca.id, ca.relationship_label, ca.affiliated_contact_id,
-      c.display_name, c.type, c.status, c.client_code, c.email_primary
-    FROM contact_affiliates ca
-    JOIN contacts c ON c.id = ca.affiliated_contact_id
-    WHERE ca.contact_id = ?
-    ORDER BY c.display_name ASC
-  `).all(req.params.id);
+  // contact_affiliates table is retained but the feature is no longer surfaced in the UI
 
   const activity = db.prepare(`
     SELECT cal.*, u.full_name AS logged_by
@@ -162,7 +155,6 @@ router.get('/:id', (req, res) => {
     ...applyMasks(contact),
     assignments,
     tags,
-    affiliates,
     activity,
     engagements,
     referred_by_contact,
@@ -224,10 +216,10 @@ router.post('/', (req, res) => {
       phone_1, phone_1_label, phone_2, phone_2_label, phone_3, phone_3_label, fax,
       email_primary, email_secondary, website,
       referral_source, referred_by_contact_id, naic_code, line_of_business, department, notes,
-      created_by
+      contact_person, created_by
     ) VALUES (
       ?,?,?,  ?,?,?,?,?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,?,?,?,
-      ?,?,?,?,?,?,  ?,?,?,?,?,?,?,  ?,?,?,  ?,?,?,?,?,?,  ?
+      ?,?,?,?,?,?,  ?,?,?,?,?,?,?,  ?,?,?,  ?,?,?,?,?,?,  ?,?
     )
   `).run(
     b.type || 'individual', b.status || 'active', display_name,
@@ -245,7 +237,7 @@ router.post('/', (req, res) => {
     b.email_primary || null, b.email_secondary || null, b.website || null,
     b.referral_source || null, b.referred_by_contact_id || null,
     b.naic_code || null, b.line_of_business || null, b.department || null, b.notes || null,
-    req.user.id
+    b.contact_person || null, req.user.id
   );
 
   const id = r.lastInsertRowid;
@@ -288,7 +280,7 @@ router.put('/:id', (req, res) => {
       phone_1=?, phone_1_label=?, phone_2=?, phone_2_label=?, phone_3=?, phone_3_label=?, fax=?,
       email_primary=?, email_secondary=?, website=?,
       referral_source=?, referred_by_contact_id=?, naic_code=?, line_of_business=?, department=?, notes=?,
-      updated_at=datetime('now')
+      contact_person=?, updated_at=datetime('now')
     WHERE id=?
   `).run(
     type, val('status', prev.status), display_name,
@@ -306,7 +298,7 @@ router.put('/:id', (req, res) => {
     nullable('email_primary'), nullable('email_secondary'), nullable('website'),
     nullable('referral_source'), nullable('referred_by_contact_id'),
     nullable('naic_code'), nullable('line_of_business'), nullable('department'), nullable('notes'),
-    req.params.id
+    nullable('contact_person'), req.params.id
   );
 
   if (b.status && b.status !== prev.status) {
@@ -353,34 +345,7 @@ router.post('/:id/activity', (req, res) => {
   res.status(201).json(entry);
 });
 
-// POST /api/contacts/:id/affiliates
-router.post('/:id/affiliates', (req, res) => {
-  const { affiliated_contact_id, relationship_label } = req.body;
-  if (!affiliated_contact_id) return res.status(400).json({ error: 'affiliated_contact_id required' });
-
-  const r = db.prepare(
-    `INSERT INTO contact_affiliates (contact_id, affiliated_contact_id, relationship_label) VALUES (?, ?, ?)`
-  ).run(req.params.id, affiliated_contact_id, relationship_label || null);
-
-  const aff = db.prepare(`
-    SELECT ca.id, ca.relationship_label, ca.affiliated_contact_id,
-      c.display_name, c.type, c.status, c.client_code, c.email_primary
-    FROM contact_affiliates ca
-    JOIN contacts c ON c.id = ca.affiliated_contact_id
-    WHERE ca.id = ?
-  `).get(r.lastInsertRowid);
-
-  res.status(201).json(aff);
-});
-
-// DELETE /api/contacts/:id/affiliates/:relId
-router.delete('/:id/affiliates/:relId', (req, res) => {
-  const r = db.prepare(
-    'DELETE FROM contact_affiliates WHERE id = ? AND contact_id = ?'
-  ).run(req.params.relId, req.params.id);
-  if (r.changes === 0) return res.status(404).json({ error: 'Not found' });
-  res.status(204).send();
-});
+// Affiliate endpoints removed — contact_affiliates table retained for data safety
 
 // POST /api/contacts/:id/tags
 router.post('/:id/tags', (req, res) => {

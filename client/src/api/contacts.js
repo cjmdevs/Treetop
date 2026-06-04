@@ -8,8 +8,7 @@ export const contactsApi = {
   delete:            (id)               => api.delete(`/contacts/${id}`),
   revealSensitive:   (id)               => api.get(`/contacts/${id}/reveal-sensitive`),
   logActivity:       (id, data)         => api.post(`/contacts/${id}/activity`, data),
-  addAffiliate:      (id, data)         => api.post(`/contacts/${id}/affiliates`, data),
-  removeAffiliate:   (id, relId)        => api.delete(`/contacts/${id}/affiliates/${relId}`),
+  // addAffiliate / removeAffiliate removed — affiliate feature replaced by client groups
   addTag:            (id, tag)          => api.post(`/contacts/${id}/tags`, { tag }),
   removeTag:         (id, tag)          => api.delete(`/contacts/${id}/tags/${encodeURIComponent(tag)}`),
   setAssignments:    (id, assignments)  => api.put(`/contacts/${id}/staff-assignments`, { assignments }),

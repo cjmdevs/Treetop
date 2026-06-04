@@ -135,7 +135,7 @@ function MilestonesPanel({ project }) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 mt-4">
-      <h3 className="font-medium text-gray-900 mb-4">Milestones</h3>
+      <h3 className="font-medium text-gray-900 mb-4">Custom Fields</h3>
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {fields.map(f => {
           const val = values[f.id] ?? ''

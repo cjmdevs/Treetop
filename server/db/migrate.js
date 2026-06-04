@@ -287,6 +287,27 @@ function migrate() {
     WHERE project_id IS NULL
   `);
 
+  // contact_person on contacts (added 2026-06-04 — simple text field for business key contact)
+  const contactColsFinal = db.prepare('PRAGMA table_info(contacts)').all().map(c => c.name);
+  if (!contactColsFinal.includes('contact_person'))
+    db.exec('ALTER TABLE contacts ADD COLUMN contact_person TEXT');
+
+  // contact_custom_field_values table (added 2026-06-04)
+  const ccfvTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='contact_custom_field_values'").get();
+  if (!ccfvTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS contact_custom_field_values (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contact_id INTEGER NOT NULL,
+        field_definition_id INTEGER NOT NULL,
+        value TEXT,
+        UNIQUE(contact_id, field_definition_id),
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+        FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
+      )
+    `);
+  }
+
   // pay_period_user_status table (added 2026-05-21)
   const ppusTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pay_period_user_status'").get();
   if (!ppusTable) {

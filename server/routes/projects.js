@@ -53,13 +53,13 @@ function doRollForward(project, eng, targetPeriodLabel) {
 
   const result = db.prepare(`
     INSERT INTO projects (
-      engagement_id, client_name, project_type, entity_type, period_label,
+      engagement_id, contact_id, client_name, project_type, entity_type, period_label,
       fiscal_year_end, status, original_due, current_due, extended,
       client_number, engagement_number, primary_partner, manager, preparer,
       reviewer, in_charge, budgeted_hours, budgeted_amount, priority, prior_project_id
-    ) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    project.engagement_id, project.client_name, project.project_type,
+    project.engagement_id, project.contact_id || null, project.client_name, project.project_type,
     project.entity_type, newPeriodLabel, project.fiscal_year_end,
     'Not Started', newOrigDue, newCurrDue,
     project.client_number, project.engagement_number,
@@ -348,6 +348,7 @@ router.put('/:id', (req, res) => {
   if (!prev) return res.status(404).json({ error: 'Not found' });
 
   const {
+    contact_id,
     client_name, project_type, entity_type, period_label, fiscal_year_end,
     status, original_due, current_due, start_date, delivered_date, completed_date,
     extended, client_number, engagement_number, primary_partner, manager,
@@ -358,7 +359,7 @@ router.put('/:id', (req, res) => {
 
   db.prepare(`
     UPDATE projects SET
-      client_name=?, project_type=?, entity_type=?, period_label=?, fiscal_year_end=?,
+      contact_id=?, client_name=?, project_type=?, entity_type=?, period_label=?, fiscal_year_end=?,
       status=?, original_due=?, current_due=?, start_date=?, delivered_date=?,
       completed_date=?, extended=?, client_number=?, engagement_number=?,
       primary_partner=?, manager=?, preparer=?, reviewer=?, in_charge=?,
@@ -366,6 +367,7 @@ router.put('/:id', (req, res) => {
       updated_at=datetime('now')
     WHERE id=?
   `).run(
+    contact_id !== undefined ? (contact_id || null) : prev.contact_id,
     client_name       ?? prev.client_name,
     project_type      ?? prev.project_type,
     entity_type       ?? prev.entity_type,

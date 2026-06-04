@@ -6,7 +6,8 @@ import { contactsApi } from '../api/contacts'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import { useStatuses } from '../context/StatusesContext'
-import { ArrowLeftIcon, UsersIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, UsersIcon, PlusCircleIcon } from '@heroicons/react/24/outline'
+import ContactForm from './contacts/ContactForm'
 
 const PROJECT_TYPES = ['1040','1041','1065','1120','1120S','Bookkeeping','Audit','Advisory','Payroll','Other']
 const ENTITY_TYPES  = ['Individual','SMLLC','LLC','S-Corp','C-Corp','Partnership','Trust','Non-Profit','Other']
@@ -46,6 +47,16 @@ export default function ProjectForm() {
   const toast = useToast()
   const { user } = useAuth()
   const { activeStatuses, defaultStatus } = useStatuses()
+
+  // ── Client typeahead state ────────────────────────────────────────────────
+  // selectedContactId is the contact.id chosen via the picker.
+  // For new projects we require a selection; edits pre-populate from the project.
+  const [showNewContactForm, setShowNewContactForm] = useState(false)
+  const [selectedContactId, setSelectedContactId] = useState(null)
+  const [clientSearch, setClientSearch]           = useState('')
+  const [clientDropOpen, setClientDropOpen]       = useState(false)
+  const [clientDropPos, setClientDropPos]         = useState(null)
+  const clientInputRef = useRef(null)
 
   // ── Client-group state ────────────────────────────────────────────────────
   // The group lives on the CONTACT record (contacts.client_group_id).
@@ -98,6 +109,40 @@ export default function ProjectForm() {
     } finally {
       setPickerLoading(false)
     }
+  }
+
+  const handleClientFocus = () => {
+    const el = clientInputRef.current
+    if (el) {
+      const r = el.getBoundingClientRect()
+      setClientDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    setClientDropOpen(true)
+    loadPickerCandidates()
+  }
+
+  const handleClientSelect = (contact) => {
+    const name = contact.display_name || contact.business_name || ''
+    setForm(f => ({ ...f, client_name: name }))
+    setSelectedContactId(contact.id)
+    setClientSearch('')
+    setClientDropOpen(false)
+  }
+
+  const handleClientClear = () => {
+    setSelectedContactId(null)
+    setForm(f => ({ ...f, client_name: '' }))
+    setClientSearch('')
+    setTimeout(() => clientInputRef.current?.focus(), 50)
+  }
+
+  const handleNewContactSaved = (saved) => {
+    setShowNewContactForm(false)
+    // Inject the new contact into the already-loaded picker list
+    setPickerAll(prev => [...prev, saved])
+    pickerLoadedRef.current = true
+    // Auto-select it in the project form
+    handleClientSelect(saved)
   }
 
   const handlePickerFocus = () => {
@@ -153,6 +198,7 @@ export default function ProjectForm() {
           }
           if (resolvedContactId) {
             setProjectContactId(resolvedContactId)
+            setSelectedContactId(resolvedContactId)
             try {
               const contact = await contactsApi.get(resolvedContactId)
               setContactGroupId(contact.client_group_id)
@@ -161,6 +207,9 @@ export default function ProjectForm() {
                 setContactGroupMembers(members)
               }
             } catch { /* non-fatal */ }
+          } else if (data.client_name) {
+            // Orphaned project — pre-fill search so user can re-link
+            setClientSearch(data.client_name)
           }
         })
         .catch(() => toast.error('Failed to load project'))
@@ -175,10 +224,16 @@ export default function ProjectForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const resolvedContactId = selectedContactId || projectContactId || null
+    if (isNew && !resolvedContactId) {
+      toast.error('Please select an existing client from the list')
+      return
+    }
     if (!form.client_name.trim()) { toast.error('Client name is required'); return }
     setLoading(true)
     try {
       const payload = {
+        contact_id:           resolvedContactId,
         client_name:          form.client_name,
         engagement_type:      form.engagement_type,
         recurrence_frequency: form.recurrence_frequency,
@@ -294,10 +349,73 @@ export default function ProjectForm() {
           <h2 className="font-semibold text-gray-900 mb-4 text-sm uppercase tracking-wide">Client & Service</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className={lbl}>Client Name *</label>
-              <input value={form.client_name} onChange={set('client_name')} required
-                placeholder="e.g. Apex Industries LLC"
-                className={inp} />
+              <label className={lbl}>Client *</label>
+              {selectedContactId ? (
+                <div className="flex items-center gap-2 px-3 py-2 border border-blue-200 bg-blue-50 rounded-lg">
+                  <p className="text-sm font-medium text-gray-900 flex-1 truncate">{form.client_name}</p>
+                  <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full flex-shrink-0">Linked</span>
+                  <button type="button" onClick={handleClientClear}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline flex-shrink-0">Change</button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    ref={clientInputRef}
+                    value={clientSearch}
+                    onChange={e => setClientSearch(e.target.value)}
+                    onFocus={handleClientFocus}
+                    onBlur={() => setTimeout(() => setClientDropOpen(false), 160)}
+                    placeholder="Search existing clients…"
+                    className={inp}
+                  />
+                  {clientDropOpen && clientDropPos && createPortal(
+                    <div className="fixed bg-white border border-gray-200 rounded-xl shadow-2xl z-[9999] overflow-y-auto"
+                      style={{ top: clientDropPos.top, left: clientDropPos.left, width: clientDropPos.width, maxHeight: 260 }}>
+                      {pickerLoading ? (
+                        <div className="px-4 py-3 text-xs text-gray-400 flex items-center gap-2">
+                          <span className="w-3 h-3 border-2 border-gray-200 border-t-accent rounded-full animate-spin" />
+                          Loading clients…
+                        </div>
+                      ) : (() => {
+                        const q = clientSearch.toLowerCase().trim()
+                        const rows = pickerAll
+                          .filter(c => !q ||
+                            (c.display_name || '').toLowerCase().includes(q) ||
+                            (c.business_name || '').toLowerCase().includes(q) ||
+                            (c.client_code || '').toLowerCase().includes(q))
+                          .slice(0, 8)
+                        return (
+                          <>
+                            {rows.length === 0
+                              ? <div className="px-4 py-3 text-xs text-gray-400">No matching clients.</div>
+                              : rows.map(c => (
+                                <button key={c.id} type="button"
+                                  onClick={() => handleClientSelect(c)}
+                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors">
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-gray-900 truncate">{c.display_name || c.business_name}</p>
+                                    {c.client_code && <p className="text-xs text-gray-400 font-mono">{c.client_code}</p>}
+                                  </div>
+                                </button>
+                              ))
+                            }
+                            <div className="border-t border-gray-100">
+                              <button type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => { setClientDropOpen(false); setShowNewContactForm(true) }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 font-medium transition-colors">
+                                <PlusCircleIcon className="w-4 h-4 flex-shrink-0" />
+                                New client
+                              </button>
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>,
+                    document.body
+                  )}
+                </>
+              )}
             </div>
             {/* Client group — reads/writes contacts.client_group_id via contact_id */}
             <div className="col-span-2">
@@ -543,6 +661,14 @@ export default function ProjectForm() {
           </button>
         </div>
       </form>
+
+      {showNewContactForm && (
+        <ContactForm
+          contact={null}
+          onSave={handleNewContactSaved}
+          onClose={() => setShowNewContactForm(false)}
+        />
+      )}
     </div>
   )
 }

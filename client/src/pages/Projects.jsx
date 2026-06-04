@@ -32,6 +32,7 @@ const PRIORITY_STYLE = {
 const PROJECT_TYPES = ['1040','1041','1065','1120','1120S','Bookkeeping','Audit','Advisory','Payroll','Other']
 const ENTITY_TYPES  = ['Individual','SMLLC','LLC','S-Corp','C-Corp','Partnership','Trust','Non-Profit','Other']
 const PRIORITIES    = ['Low','Normal','High']
+const STAFF_NAMES   = ['Marcus Maurer','Sofia Graf','Diego Rivera','Carson']
 
 const BASE_COLUMNS = [
   { key: 'period_label',    label: 'Period',           group: 'default' },
@@ -565,7 +566,6 @@ export default function Projects() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [showDelivered, setShowDelivered] = useState(false)
   const [showRelated, setShowRelated]     = useState(false)
-  const [clientHasGroup, setClientHasGroup] = useState(false)
   const [selectedCols, setSelectedCols]   = useState(DEFAULT_COLS)
   const [showColConfig, setShowColConfig] = useState(false)
   const [showFilters, setShowFilters]     = useState(true)
@@ -574,7 +574,6 @@ export default function Projects() {
   const [newViewName, setNewViewName]     = useState('')
   const [milestoneFields, setMilestoneFields] = useState([])
   const prefsLoaded = useRef(false)
-  const groupCheckTimer = useRef(null)
   const { activeStatuses } = useStatuses()
 
   // ALL_COLUMNS = base columns + live milestone fields
@@ -592,16 +591,6 @@ export default function Projects() {
     projectsApi.milestoneFields().then(fields => setMilestoneFields(fields)).catch(() => {})
   }, [user?.id])
 
-  // Debounced client-group check when client_name filter changes
-  useEffect(() => {
-    clearTimeout(groupCheckTimer.current)
-    if (!filters.client_name.trim()) { setClientHasGroup(false); setShowRelated(false); return }
-    groupCheckTimer.current = setTimeout(() => {
-      projectsApi.checkGroup(filters.client_name)
-        .then(r => { setClientHasGroup(r.has_group); if (!r.has_group) setShowRelated(false) })
-        .catch(() => {})
-    }, 400)
-  }, [filters.client_name])
 
   const saveColPref = (cols) => {
     setSelectedCols(cols)
@@ -636,6 +625,10 @@ export default function Projects() {
         show_delivered:  showDelivered  ? 'true' : 'false',
         show_related:    showRelated    ? 'true' : 'false',
       }
+      // When filtering to a specific client, always show ALL years (ignore date bounds)
+      if (params.client_name) { delete params.due_from; delete params.due_to }
+      // When showing all related entities, also widen to all years
+      if (showRelated) { delete params.due_from; delete params.due_to }
       // Staff: fetch by each of their roles and merge
       if (user?.role === 'staff') {
         const hasRoleFilter = filters.preparer || filters.reviewer || filters.in_charge
@@ -706,8 +699,6 @@ export default function Projects() {
 
   const selectCls = 'border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-accent'
   const inputCls  = 'border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-accent'
-
-  const staffNames = ['Marcus Maurer','Sofia Graf','Diego Rivera','Carson']
 
   return (
     <div className="flex flex-col h-full">
@@ -781,6 +772,11 @@ export default function Projects() {
                 className={inputCls + ' pl-7 w-44'}
               />
             </div>
+            {filters.client_name.trim() && (
+              <span className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md font-medium">
+                All years
+              </span>
+            )}
 
             <select value={filters.project_type} onChange={setFilter('project_type')} className={selectCls}>
               <option value="">All Types</option>
@@ -796,18 +792,18 @@ export default function Projects() {
             </select>
             <select value={filters.in_charge} onChange={setFilter('in_charge')} className={selectCls}>
               <option value="">All In-Charge</option>
-              {staffNames.map(s => <option key={s}>{s}</option>)}
+              {STAFF_NAMES.map(s => <option key={s}>{s}</option>)}
             </select>
             <select value={filters.preparer} onChange={setFilter('preparer')} className={selectCls}>
               <option value="">All Preparers</option>
-              {staffNames.map(s => <option key={s}>{s}</option>)}
+              {STAFF_NAMES.map(s => <option key={s}>{s}</option>)}
             </select>
             <select value={filters.priority} onChange={setFilter('priority')} className={selectCls}>
               <option value="">All Priorities</option>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
 
-            <div className="flex items-center gap-1 ml-1">
+            <div className={`flex items-center gap-1 ml-1 transition-opacity ${filters.client_name.trim() ? 'opacity-30 pointer-events-none' : ''}`}>
               <span className="text-xs text-gray-400">Due:</span>
               <input type="date" value={filters.due_from} onChange={setFilter('due_from')} className={inputCls} />
               <span className="text-xs text-gray-300">–</span>
@@ -822,13 +818,11 @@ export default function Projects() {
               <input type="checkbox" checked={showDelivered} onChange={e => setShowDelivered(e.target.checked)} className="rounded border-gray-300 accent-accent" />
               Show Delivered
             </label>
-            {clientHasGroup && filters.client_name && (
-              <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-accent font-medium border border-accent/30 rounded-lg px-2 py-1 bg-accent/5">
-                <UsersIcon className="w-3.5 h-3.5" />
-                <input type="checkbox" checked={showRelated} onChange={e => setShowRelated(e.target.checked)} className="rounded border-accent/40 accent-accent" />
-                Show all related entities
-              </label>
-            )}
+            <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none border rounded-lg px-2 py-1 transition-colors ${showRelated ? 'text-accent font-medium border-accent/30 bg-accent/5' : 'text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+              <UsersIcon className="w-3.5 h-3.5" />
+              <input type="checkbox" checked={showRelated} onChange={e => setShowRelated(e.target.checked)} className="rounded border-gray-300 accent-accent" />
+              Related entities
+            </label>
 
             {hasActiveFilters && (
               <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700">
@@ -883,3 +877,5 @@ export default function Projects() {
     </div>
   )
 }
+
+// (AddYearModal removed — use "Duplicate to year" on the project detail page instead)

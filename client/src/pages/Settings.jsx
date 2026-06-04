@@ -114,7 +114,7 @@ function ActionConfigForm({ actionType, value, onChange }) {
 const BLANK_STATUS = { label: '', color: '#3B82F6', is_default: false }
 
 export default function Settings() {
-  const [tab, setTab] = useState('fields')
+  const [tab, setTab] = useState('statuses')
   const { isAdmin } = useAuth()
   const { refresh: refreshStatuses } = useStatuses()
 
@@ -157,8 +157,8 @@ export default function Settings() {
   const [psForm,       setPsForm]       = useState(BLANK_STATUS)
   const [psError,      setPsError]      = useState('')
 
-  // ── Custom field scope ─────────────────────────────────────────────────────
-  const [fieldScope, setFieldScope] = useState('engagement') // 'engagement' | 'project'
+  // ── Custom field scope — derived from nav selection ───────────────────────
+  const fieldScope = tab === 'project-fields' ? 'project' : 'engagement'
 
   const [saving, setSaving] = useState(false)
 
@@ -375,44 +375,59 @@ export default function Settings() {
     return acc
   }, {})
 
+  const navSections = [
+    { label: 'Projects', items: [
+      { key: 'statuses',       label: 'Project Statuses', visible: true },
+      { key: 'project-fields', label: 'Project Fields',   visible: true },
+      { key: 'automations',    label: 'Automations',      visible: true },
+    ]},
+    { label: 'Contacts / Clients', items: [
+      { key: 'client-types',   label: 'Client Types',   visible: isAdmin },
+      { key: 'contact-fields', label: 'Contact Fields', visible: true },
+    ]},
+    { label: 'Time & Billing', items: [
+      { key: 'codes', label: 'Service Codes', visible: true },
+      { key: 'rates', label: 'Staff Rates',   visible: true },
+    ]},
+    { label: 'System / Admin', items: [
+      { key: 'accounts', label: 'User Accounts', visible: isAdmin },
+    ]},
+  ]
+
   return (
-    <div className="p-8 max-w-5xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
-
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {[
-          ['fields',        'Custom Fields',   true],
-          ['statuses',      'Project Statuses',true],
-          ['codes',         'Service Codes',   true],
-          ['rates',         'Staff Rates',     true],
-          ['automations',   'Automations',     true],
-          ['client-types',  'Client Types',    isAdmin],
-          ['accounts',      'User Accounts',   isAdmin],
-        ].filter(([,, visible]) => visible).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === key ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Custom Fields ────────────────────────────────────────────────────── */}
-      {tab === 'fields' && (
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-                {[['engagement','Engagement Fields'],['project','Project Columns']].map(([k, l]) => (
-                  <button key={k} onClick={() => { setFieldScope(k); setEditingField(null) }}
-                    className={`px-4 py-1.5 font-medium transition-colors ${fieldScope === k ? 'bg-accent text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                    {l}
+    <div className="flex h-full overflow-hidden">
+      <aside className="w-52 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto">
+        <div className="px-4 py-6">
+          <h1 className="text-base font-bold text-gray-900 mb-6">Settings</h1>
+          {navSections.map(section => {
+            const anyVisible = section.items.some(i => i.visible)
+            if (!anyVisible) return null
+            return (
+              <div key={section.label} className="mb-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 px-2">{section.label}</p>
+                {section.items.filter(i => i.visible).map(item => (
+                  <button key={item.key} onClick={() => setTab(item.key)}
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg mb-0.5 transition-colors ${
+                      tab === item.key ? 'bg-accent/10 text-accent font-medium' : 'text-gray-600 hover:bg-gray-100'
+                    }`}>
+                    {item.label}
                   </button>
                 ))}
               </div>
-              <p className="text-sm text-gray-400">
-                {fieldScope === 'project' ? 'Add custom columns to the Projects grid.' : 'Add custom fields to every engagement.'}
-              </p>
-            </div>
+            )
+          })}
+        </div>
+      </aside>
+      <div className="flex-1 overflow-y-auto p-8 min-w-0">
+      <div className="max-w-4xl">
+
+      {/* ── Custom Fields ────────────────────────────────────────────────────── */}
+      {(tab === 'project-fields' || tab === 'contact-fields') && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-gray-500">
+              {fieldScope === 'project' ? 'Add custom columns to the Projects grid.' : 'Add custom fields to every engagement / contact.'}
+            </p>
             <button onClick={() => { setEditingField('new'); setFieldForm({ ...BLANK_FIELD, sort_order: fields.filter(f => (f.scope||'engagement')===fieldScope).length, scope: fieldScope }) }}
               className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
               + Add Field
@@ -1234,7 +1249,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── Automations ───────────────────────────────────────────────────────── */}
+      {/* ── Automations ──────────────────────────────────────────────────────── */}
       {tab === 'automations' && (
         <div>
           <div className="flex justify-between items-center mb-4">
@@ -1348,6 +1363,8 @@ export default function Settings() {
           </div>
         </div>
       )}
+      </div>
+      </div>
     </div>
   )
 }

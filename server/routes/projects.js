@@ -43,11 +43,13 @@ function advanceDueDate(dueDateStr, freq) {
   return d.toISOString().split('T')[0];
 }
 
-function doRollForward(project, eng) {
+function doRollForward(project, eng, targetPeriodLabel) {
   const freq = eng.recurrence_frequency || 'Annually';
-  const newPeriodLabel = advancePeriodLabel(project.period_label || '');
-  const newOrigDue = advanceDueDate(project.original_due, freq);
-  const newCurrDue = advanceDueDate(project.current_due || project.original_due, freq);
+  const customPeriod = targetPeriodLabel && String(targetPeriodLabel).trim();
+  const newPeriodLabel = customPeriod || advancePeriodLabel(project.period_label || '');
+  // When duplicating to a specific period, clear dates so the user sets them on edit
+  const newOrigDue = customPeriod ? null : advanceDueDate(project.original_due, freq);
+  const newCurrDue = customPeriod ? null : advanceDueDate(project.current_due || project.original_due, freq);
 
   const result = db.prepare(`
     INSERT INTO projects (
@@ -350,6 +352,8 @@ router.put('/:id', (req, res) => {
     status, original_due, current_due, start_date, delivered_date, completed_date,
     extended, client_number, engagement_number, primary_partner, manager,
     preparer, reviewer, in_charge, budgeted_hours, budgeted_amount, priority,
+    // Engagement-level fields — stored on the engagements table, not projects
+    engagement_type, recurrence_frequency,
   } = req.body;
 
   db.prepare(`
@@ -387,12 +391,34 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
+  // Propagate engagement-level fields to the linked engagements row.
+  // One engagement can have many projects (years); updating type/recurrence here
+  // intentionally updates the shared container — that's correct behaviour.
+  if ((engagement_type !== undefined || recurrence_frequency !== undefined) && prev.engagement_id) {
+    const eng = db.prepare('SELECT * FROM engagements WHERE id = ?').get(prev.engagement_id);
+    if (eng) {
+      db.prepare(`
+        UPDATE engagements SET engagement_type=?, recurrence_frequency=? WHERE id=?
+      `).run(
+        engagement_type      ?? eng.engagement_type,
+        recurrence_frequency ?? eng.recurrence_frequency,
+        prev.engagement_id
+      );
+    }
+  }
+
   if (status && status !== prev.status) {
     log('status_changed', 'project', req.params.id,
       `Status: "${prev.status}" → "${status}"`, prev.primary_partner);
   }
 
-  res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id));
+  // JOIN engagements so the response includes the freshly-updated engagement fields
+  res.json(db.prepare(`
+    SELECT p.*, e.engagement_type, e.recurrence_frequency
+    FROM projects p
+    JOIN engagements e ON e.id = p.engagement_id
+    WHERE p.id = ?
+  `).get(req.params.id));
 });
 
 // ── PATCH /api/projects/:id/status ────────────────────────────────────────────
@@ -427,7 +453,8 @@ router.post('/:id/roll-forward', (req, res) => {
   const eng = db.prepare('SELECT * FROM engagements WHERE id = ?').get(project.engagement_id);
   if (!eng) return res.status(404).json({ error: 'Engagement not found' });
 
-  const newProject = doRollForward(project, eng);
+  const { target_period } = req.body || {};
+  const newProject = doRollForward(project, eng, target_period || null);
   res.status(201).json(newProject);
 });
 

@@ -30,7 +30,8 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  get:    (path)       => request(path),
+  // cache: 'no-store' prevents 304 / stale responses after a save
+  get:    (path)       => request(path, { cache: 'no-store' }),
   post:   (path, body) => request(path, { method: 'POST',   body }),
   put:    (path, body) => request(path, { method: 'PUT',    body }),
   patch:  (path, body) => request(path, { method: 'PATCH',  body }),

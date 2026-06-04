@@ -20,7 +20,7 @@ export const projectsApi = {
 
   setStatus: (id, status) => api.patch(`/projects/${id}/status`, { status }),
 
-  rollForward: (id) => api.post(`/projects/${id}/roll-forward`, {}),
+  rollForward: (id, body = {}) => api.post(`/projects/${id}/roll-forward`, body),
 
   rollForwardBatch: (ids) => api.post('/projects/roll-forward-batch', { ids }),
 

@@ -15,6 +15,8 @@ import {
   CheckCircleIcon,
   PlusIcon,
   ChevronRightIcon,
+  DocumentDuplicateIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 
@@ -652,6 +654,9 @@ export default function ProjectDetail() {
   const [project, setProject] = useState(null)
   const [tab, setTab] = useState('overview')
   const [rolling, setRolling] = useState(false)
+  const [dupOpen, setDupOpen]   = useState(false)
+  const [dupPeriod, setDupPeriod] = useState('')
+  const [dupSaving, setDupSaving] = useState(false)
 
   useEffect(() => {
     projectsApi.get(id).then(data => {
@@ -664,12 +669,30 @@ export default function ProjectDetail() {
     setRolling(true)
     try {
       const next = await projectsApi.rollForward(project.id)
-      toast.success(`Created ${next.period_label} project`)
+      toast.addToast(`Created ${next.period_label} project`, 'success')
       navigate(`/projects/${next.id}`)
     } catch {
-      toast.error('Roll-forward failed')
+      toast.addToast('Roll-forward failed', 'error')
     } finally {
       setRolling(false)
+    }
+  }
+
+  const handleDuplicate = async (e) => {
+    e.preventDefault()
+    const period = dupPeriod.trim()
+    if (!period) return
+    setDupSaving(true)
+    try {
+      const next = await projectsApi.rollForward(project.id, { target_period: period })
+      toast.addToast(`Duplicated to ${next.period_label} — edit to fill in details`, 'success')
+      setDupOpen(false)
+      setDupPeriod('')
+      navigate(`/projects/${next.id}/edit`)
+    } catch {
+      toast.addToast('Duplication failed', 'error')
+    } finally {
+      setDupSaving(false)
     }
   }
 
@@ -717,6 +740,14 @@ export default function ProjectDetail() {
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
+              onClick={() => { setDupPeriod(''); setDupOpen(true) }}
+              className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              title="Copy this project to any past or future period"
+            >
+              <DocumentDuplicateIcon className="w-4 h-4" />
+              Duplicate to year
+            </button>
+            <button
               onClick={handleRollForward}
               disabled={rolling}
               className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -758,6 +789,53 @@ export default function ProjectDetail() {
         {tab === 'notes'     && <NotesActivityTab project={project} />}
         {tab === 'history'   && <HistoryTab project={project} />}
       </div>
+
+      {/* ─ Duplicate to year modal ─ */}
+      {dupOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Duplicate to another year</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Copies <span className="font-medium text-gray-700">{project.client_name}</span> · {project.project_type} setup to a new period
+                </p>
+              </div>
+              <button onClick={() => setDupOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleDuplicate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Target period <span className="text-red-400">*</span>
+                </label>
+                <input
+                  autoFocus
+                  required
+                  value={dupPeriod}
+                  onChange={e => setDupPeriod(e.target.value)}
+                  placeholder="e.g. 2022 · Q1 2025 · Jan 2026"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Copies type, entity, roles, budget. Dates cleared — fill them in after.
+                </p>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setDupOpen(false)}
+                  className="flex-1 px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={dupSaving || !dupPeriod.trim()}
+                  className="flex-1 px-4 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  {dupSaving ? 'Creating…' : 'Duplicate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -13,8 +13,15 @@ export function ToastProvider({ children }) {
 
   const remove = id => setToasts(t => t.filter(x => x.id !== id))
 
+  // Expose convenience shorthands so both patterns work app-wide:
+  //   toast.addToast('msg', 'error')   ← existing low-level API
+  //   toast.success('msg')             ← shorthand used throughout the app
+  //   toast.error('msg')               ← shorthand used throughout the app
+  const success = (msg) => addToast(msg, 'success')
+  const error   = (msg) => addToast(msg, 'error')
+
   return (
-    <ToastContext.Provider value={{ addToast }}>
+    <ToastContext.Provider value={{ addToast, success, error }}>
       {children}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => (

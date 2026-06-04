@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   EnvelopeIcon, PhoneIcon, GlobeAltIcon, PencilIcon, PlusIcon, TrashIcon,
@@ -168,38 +169,69 @@ export default function ContactDetail() {
   }
 
   // ── Client group management ─────────────────────────────────────────────────
-  const [groupMembers, setGroupMembers] = useState([])
-  const [groupSearch, setGroupSearch] = useState('')
-  const [groupResults, setGroupResults] = useState([])
-  const [groupBusy, setGroupBusy] = useState(false)
+  const [groupMembers, setGroupMembers]     = useState([])
+  const [groupSearch, setGroupSearch]       = useState('')
+  const [groupResults, setGroupResults]     = useState([])
+  const [groupBusy, setGroupBusy]           = useState(false)
+  const [groupFocused, setGroupFocused]     = useState(false)
+  const [groupLoading, setGroupLoading]     = useState(false)
+  const [groupError, setGroupError]         = useState('')
+  const [groupDropPos, setGroupDropPos]     = useState(null)
+  const groupInputRef = useRef(null)
+  const groupCandidatesLoaded = useRef(false)
 
+  // When contact gains a group, fetch its members; when it loses one, reset picker
   useEffect(() => {
     if (contact?.client_group_id) {
-      contactsApi.groupMembers(id).then(setGroupMembers).catch(() => {})
+      contactsApi.groupMembers(id)
+        .then(setGroupMembers)
+        .catch(() => setGroupMembers([]))
+      setGroupResults([])
+      groupCandidatesLoaded.current = false
     } else {
       setGroupMembers([])
     }
   }, [id, contact?.client_group_id])
 
-  const searchGroupContacts = async (q) => {
-    setGroupSearch(q)
-    if (!q.trim()) { setGroupResults([]); return }
-    const res = await contactsApi.list({ search: q })
-    setGroupResults(res.filter(r => r.id !== Number(id)).slice(0, 6))
+  // Fetch all contacts when the picker input is focused (fetch-on-demand, not preload)
+  const loadGroupCandidates = async () => {
+    if (groupCandidatesLoaded.current) return
+    setGroupLoading(true)
+    setGroupError('')
+    try {
+      const all = await contactsApi.list({})
+      setGroupResults(all.filter(c => c.id !== Number(id)))
+      groupCandidatesLoaded.current = true
+    } catch {
+      setGroupError('Could not load contacts — check your connection.')
+    } finally {
+      setGroupLoading(false)
+    }
+  }
+
+  const handleGroupFocus = () => {
+    const el = groupInputRef.current
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      setGroupDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+    setGroupFocused(true)
+    loadGroupCandidates()
   }
 
   const handleJoinGroup = async (targetContact) => {
     setGroupBusy(true)
     try {
-      // Determine group_id: use target's group if they have one, else create new one
       const groupId = targetContact.client_group_id || 'new'
       await contactsApi.setGroup(id, groupId)
-      // Also ensure target is in a group if they weren't
       if (!targetContact.client_group_id) {
         const refreshedSelf = await contactsApi.get(id)
         await contactsApi.setGroup(targetContact.id, refreshedSelf.client_group_id)
       }
-      setGroupSearch(''); setGroupResults([])
+      setGroupSearch('')
+      setGroupResults([])
+      setGroupFocused(false)
+      groupCandidatesLoaded.current = false
       addToast('Added to client group', 'success')
       load()
     } catch { addToast('Failed to update group', 'error') }
@@ -251,6 +283,16 @@ export default function ContactDetail() {
   )
 
   const isAdmin = user?.role === 'admin'
+
+  // Locally filter the preloaded candidates by the search query
+  const gq = groupSearch.toLowerCase().trim()
+  const pickerRows = gq
+    ? groupResults.filter(r =>
+        (r.display_name || '').toLowerCase().includes(gq) ||
+        (r.business_name || '').toLowerCase().includes(gq) ||
+        (r.client_code || '').toLowerCase().includes(gq)
+      ).slice(0, 8)
+    : groupResults.slice(0, 8)
 
   const tabs = ['overview', 'engagements', 'time & billing', 'affiliates', 'activity']
 
@@ -450,28 +492,55 @@ export default function ContactDetail() {
                     <p className="text-xs text-gray-500 mb-3">
                       Link this contact to a client group to see all their related entities' projects together.
                     </p>
-                    <div className="relative">
-                      <input
-                        value={groupSearch}
-                        onChange={e => searchGroupContacts(e.target.value)}
-                        placeholder="Search another client to group with…"
-                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                      {groupResults.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                          {groupResults.map(r => (
+                    <input
+                      ref={groupInputRef}
+                      value={groupSearch}
+                      onChange={e => setGroupSearch(e.target.value)}
+                      onFocus={handleGroupFocus}
+                      onBlur={() => setTimeout(() => setGroupFocused(false), 160)}
+                      placeholder="Click to pick another client to group with…"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                    {/* Dropdown rendered via portal so overflow:auto ancestors can't clip it */}
+                    {groupFocused && groupDropPos && createPortal(
+                      <div
+                        className="fixed bg-white border border-gray-200 rounded-xl shadow-2xl z-[9999]"
+                        style={{ top: groupDropPos.top, left: groupDropPos.left, width: groupDropPos.width, maxHeight: 260 }}
+                      >
+                        <div className="overflow-y-auto" style={{ maxHeight: 260 }}>
+                          {groupLoading && (
+                            <div className="px-4 py-3 text-xs text-gray-400 flex items-center gap-2">
+                              <span className="w-3 h-3 border-2 border-gray-200 border-t-accent rounded-full animate-spin" />
+                              Loading contacts…
+                            </div>
+                          )}
+                          {!groupLoading && groupError && (
+                            <div className="px-4 py-3 text-xs text-red-500 flex items-center justify-between">
+                              {groupError}
+                              <button onClick={() => { groupCandidatesLoaded.current = false; loadGroupCandidates() }}
+                                className="ml-2 underline hover:text-red-700">Retry</button>
+                            </div>
+                          )}
+                          {!groupLoading && !groupError && pickerRows.length === 0 && (
+                            <div className="px-4 py-3 text-xs text-gray-400">No other contacts found.</div>
+                          )}
+                          {!groupLoading && !groupError && pickerRows.map(r => (
                             <button key={r.id} type="button" onClick={() => handleJoinGroup(r)}
                               disabled={groupBusy}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
-                              <span className="text-gray-900">{r.display_name || r.business_name}</span>
-                              <span className="text-xs text-gray-400">
-                                {r.client_group_id ? `Join group ${r.client_group_id}` : 'Create new group'}
+                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors disabled:opacity-50">
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{r.display_name || r.business_name}</p>
+                                {r.client_code && <p className="text-xs text-gray-400 font-mono">{r.client_code}</p>}
+                              </div>
+                              <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full font-medium ${r.client_group_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {r.client_group_id ? `Join group ${r.client_group_id}` : 'New group'}
                               </span>
                             </button>
                           ))}
                         </div>
-                      )}
-                    </div>
+                      </div>,
+                      document.body
+                    )}
                   </div>
                 )}
               </div>

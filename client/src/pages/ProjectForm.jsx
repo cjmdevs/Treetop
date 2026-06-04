@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projectsApi } from '../api/projects'
 import { contactsApi } from '../api/contacts'
@@ -46,10 +47,27 @@ export default function ProjectForm() {
   const { user } = useAuth()
   const { activeStatuses, defaultStatus } = useStatuses()
 
-  // Group picker state
-  const [groups, setGroups] = useState([])
-  const [groupSearch, setGroupSearch] = useState('')
-  const [groupResults, setGroupResults] = useState([])
+  // ── Client-group state ────────────────────────────────────────────────────
+  // The group lives on the CONTACT record (contacts.client_group_id).
+  // We read it when loading an existing project, display it, and write via
+  // PATCH /api/contacts/:id/group on submit.
+  const [projectContactId, setProjectContactId] = useState(null)
+  const [contactGroupId, setContactGroupId]     = useState(null)
+  const [contactGroupMembers, setContactGroupMembers] = useState([])
+  // pendingGroup: what the user has chosen but not yet saved
+  //   { type: 'join', target: {...contact} }  — link with another client
+  //   { type: 'remove' }                       — remove from group
+  //   null                                      — no change
+  const [pendingGroup, setPendingGroup] = useState(null)
+  // Picker UI
+  const [pickerOpen, setPickerOpen]       = useState(false)
+  const [pickerSearch, setPickerSearch]   = useState('')
+  const [pickerAll, setPickerAll]         = useState([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [pickerError, setPickerError]     = useState('')
+  const [pickerDropPos, setPickerDropPos] = useState(null)
+  const pickerInputRef  = useRef(null)
+  const pickerLoadedRef = useRef(false)
 
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
@@ -66,22 +84,38 @@ export default function ProjectForm() {
     }
   }, [isNew, user?.full_name, defaultStatus])
 
-  // Load groups for picker
-  useEffect(() => { contactsApi.groups().then(setGroups).catch(() => {}) }, [])
-
-  const searchGroups = async (q) => {
-    setGroupSearch(q)
-    if (!q.trim()) { setGroupResults([]); return }
-    const res = await contactsApi.list({ search: q })
-    setGroupResults(res.filter(c => c.client_group_id).slice(0, 8))
+  // Fetch all contacts on first picker focus (not preloaded — avoids stale data)
+  const loadPickerCandidates = async () => {
+    if (pickerLoadedRef.current) return
+    setPickerLoading(true)
+    setPickerError('')
+    try {
+      const all = await contactsApi.list({})
+      setPickerAll(all)
+      pickerLoadedRef.current = true
+    } catch {
+      setPickerError('Could not load contacts.')
+    } finally {
+      setPickerLoading(false)
+    }
   }
 
-  // Load existing project for edit
+  const handlePickerFocus = () => {
+    const el = pickerInputRef.current
+    if (el) {
+      const r = el.getBoundingClientRect()
+      setPickerDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    setPickerOpen(true)
+    loadPickerCandidates()
+  }
+
+  // Load existing project for edit — also fetches the contact's group
   useEffect(() => {
     if (!isNew && id) {
       setFetching(true)
       projectsApi.get(id)
-        .then(data => {
+        .then(async (data) => {
           setForm({
             client_name:          data.client_name        || '',
             engagement_type:      data.engagement_type    || 'Tax Return',
@@ -105,6 +139,29 @@ export default function ProjectForm() {
             fiscal_year_end:      data.fiscal_year_end    || '',
             extended:             !!data.extended,
           })
+          // Read the client's group from their contact record
+          let resolvedContactId = data.contact_id || null
+          if (!resolvedContactId && data.client_name) {
+            // Fallback: project pre-dates contact_id column — look up by name
+            try {
+              const hits = await contactsApi.list({ search: data.client_name })
+              const match = hits.find(c =>
+                (c.display_name || c.business_name || '').toLowerCase() === data.client_name.toLowerCase()
+              )
+              if (match) resolvedContactId = match.id
+            } catch {}
+          }
+          if (resolvedContactId) {
+            setProjectContactId(resolvedContactId)
+            try {
+              const contact = await contactsApi.get(resolvedContactId)
+              setContactGroupId(contact.client_group_id)
+              if (contact.client_group_id) {
+                const members = await contactsApi.groupMembers(resolvedContactId)
+                setContactGroupMembers(members)
+              }
+            } catch { /* non-fatal */ }
+          }
         })
         .catch(() => toast.error('Failed to load project'))
         .finally(() => setFetching(false))
@@ -118,36 +175,90 @@ export default function ProjectForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.client_name.trim()) {
-      toast.error('Client name is required')
-      return
-    }
+    if (!form.client_name.trim()) { toast.error('Client name is required'); return }
     setLoading(true)
     try {
-      const { _client_group_id, _group_label, ...formData } = form
       const payload = {
-        ...formData,
-        budgeted_hours:  formData.budgeted_hours  !== '' ? Number(formData.budgeted_hours)  : null,
-        budgeted_amount: formData.budgeted_amount !== '' ? Number(formData.budgeted_amount) : null,
-        extended:        formData.extended ? 1 : 0,
-        current_due:     formData.current_due || formData.original_due || null,
+        client_name:          form.client_name,
+        engagement_type:      form.engagement_type,
+        recurrence_frequency: form.recurrence_frequency,
+        project_type:         form.project_type,
+        entity_type:          form.entity_type,
+        period_label:         form.period_label,
+        status:               form.status,
+        original_due:         form.original_due || null,
+        current_due:          form.current_due || form.original_due || null,
+        fiscal_year_end:      form.fiscal_year_end || null,
+        priority:             form.priority,
+        extended:             form.extended ? 1 : 0,
+        primary_partner:      form.primary_partner || null,
+        manager:              form.manager || null,
+        preparer:             form.preparer || null,
+        reviewer:             form.reviewer || null,
+        in_charge:            form.in_charge || null,
+        budgeted_hours:       form.budgeted_hours  !== '' ? Number(form.budgeted_hours)  : null,
+        budgeted_amount:      form.budgeted_amount !== '' ? Number(form.budgeted_amount) : null,
+        client_number:        form.client_number || null,
+        engagement_number:    form.engagement_number || null,
       }
+
+      let savedProjectId = id
+      let clientContactId = projectContactId
+
       if (isNew) {
         const created = await projectsApi.create(payload)
-        // If a group was picked, find/create the contact for this client and assign group
-        if (_client_group_id && formData.client_name) {
-          const contacts = await contactsApi.list({ search: formData.client_name })
-          const match = contacts.find(c => (c.display_name || c.business_name)?.toLowerCase() === formData.client_name.toLowerCase())
-          if (match) await contactsApi.setGroup(match.id, _client_group_id)
+        savedProjectId = created.id
+        // Use contact_id from the created project (server auto-links it)
+        if (created.contact_id) {
+          clientContactId = created.contact_id
+        } else {
+          // Fallback: look up by name
+          try {
+            const hits = await contactsApi.list({ search: form.client_name })
+            const match = hits.find(c =>
+              (c.display_name || c.business_name || '').toLowerCase() === form.client_name.toLowerCase()
+            )
+            if (match) clientContactId = match.id
+          } catch {}
         }
-        toast.success('Project created')
-        navigate(`/projects/${created.id}`)
       } else {
         await projectsApi.update(id, payload)
-        toast.success('Project saved')
-        navigate(`/projects/${id}`)
+        // Fallback: if contact_id wasn't on this project, look up by name now
+        if (!clientContactId && form.client_name) {
+          try {
+            const hits = await contactsApi.list({ search: form.client_name })
+            const match = hits.find(c =>
+              (c.display_name || c.business_name || '').toLowerCase() === form.client_name.toLowerCase()
+            )
+            if (match) clientContactId = match.id
+          } catch {}
+        }
       }
+
+      // Apply group change (both new and edit)
+      if (pendingGroup && clientContactId) {
+        if (pendingGroup.type === 'remove') {
+          await contactsApi.setGroup(clientContactId, null)
+          toast.success('Removed from client group')
+        } else if (pendingGroup.type === 'join') {
+          const target = pendingGroup.target
+          const groupId = target.client_group_id || 'new'
+          await contactsApi.setGroup(clientContactId, groupId)
+          if (!target.client_group_id) {
+            // Both had no group — fetch the new group_id assigned to our client, put target in it
+            const refreshed = await contactsApi.get(clientContactId)
+            if (refreshed.client_group_id) {
+              await contactsApi.setGroup(target.id, refreshed.client_group_id)
+            }
+          }
+          toast.success('Client group saved')
+        }
+      }
+
+      toast.success(isNew ? 'Project created' : 'Project saved')
+      navigate(`/projects/${savedProjectId}`)
     } catch (err) {
+      console.error('[ProjectForm] save error:', err)
       toast.error(err?.message || 'Failed to save project')
     } finally {
       setLoading(false)
@@ -188,42 +299,110 @@ export default function ProjectForm() {
                 placeholder="e.g. Apex Industries LLC"
                 className={inp} />
             </div>
-            {/* Client group picker */}
+            {/* Client group — reads/writes contacts.client_group_id via contact_id */}
             <div className="col-span-2">
               <label className={lbl}>
                 <UsersIcon className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-                Client Group <span className="text-gray-300 font-normal">(optional — links this entity to related clients)</span>
+                Client Group
+                <span className="text-gray-300 font-normal ml-1">(links related entities for combined project view)</span>
               </label>
-              <div className="relative">
-                <input
-                  value={groupSearch}
-                  onChange={e => searchGroups(e.target.value)}
-                  placeholder="Search by existing client name to join their group…"
-                  className={inp}
-                />
-                {groupResults.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                    {groupResults.map(c => (
-                      <button type="button" key={c.id}
-                        onClick={() => {
-                          setForm(f => ({ ...f, _client_group_id: c.client_group_id, _group_label: c.display_name || c.business_name }))
-                          setGroupSearch(c.display_name || c.business_name || '')
-                          setGroupResults([])
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                        <span className="text-gray-900">{c.display_name || c.business_name}</span>
-                        <span className="text-xs text-gray-400">Group {c.client_group_id}</span>
-                      </button>
-                    ))}
+
+              {/* Pending removal */}
+              {pendingGroup?.type === 'remove' ? (
+                <div className="flex items-center gap-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm">
+                  <span className="text-red-600 flex-1">Will remove from group on save</span>
+                  <button type="button" onClick={() => setPendingGroup(null)}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline">Undo</button>
+                </div>
+
+              /* Pending join */
+              ) : pendingGroup?.type === 'join' ? (
+                <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <UsersIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-blue-800 truncate">
+                      Will group with {pendingGroup.target.display_name || pendingGroup.target.business_name}
+                    </p>
+                    <p className="text-xs text-blue-500">Saved when you click Save Changes</p>
                   </div>
-                )}
-              </div>
-              {form._client_group_id && (
-                <p className="mt-1 text-xs text-accent">
-                  Will join group {form._client_group_id} with {form._group_label}
-                  <button type="button" onClick={() => { setForm(f => ({ ...f, _client_group_id: null, _group_label: '' })); setGroupSearch('') }}
-                    className="ml-2 text-gray-400 hover:text-red-500">×</button>
-                </p>
+                  <button type="button" onClick={() => setPendingGroup(null)}
+                    className="text-xs text-red-400 hover:text-red-600 flex-shrink-0">Cancel</button>
+                </div>
+
+              /* Currently in a group (loaded from contact) */
+              ) : contactGroupId ? (
+                <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <UsersIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-blue-800">Group {contactGroupId}</p>
+                    {contactGroupMembers.length > 0 && (
+                      <p className="text-xs text-blue-600 truncate">
+                        With: {contactGroupMembers.map(m => m.display_name || m.business_name).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setPendingGroup({ type: 'remove' })}
+                    className="text-xs text-red-400 hover:text-red-600 flex-shrink-0">Remove</button>
+                </div>
+
+              /* No group — show picker */
+              ) : (
+                <>
+                  <input
+                    ref={pickerInputRef}
+                    value={pickerSearch}
+                    onChange={e => setPickerSearch(e.target.value)}
+                    onFocus={handlePickerFocus}
+                    onBlur={() => setTimeout(() => setPickerOpen(false), 160)}
+                    placeholder="Click to pick another client to link into a group…"
+                    className={inp}
+                  />
+                  {pickerOpen && pickerDropPos && createPortal(
+                    <div className="fixed bg-white border border-gray-200 rounded-xl shadow-2xl z-[9999]"
+                      style={{ top: pickerDropPos.top, left: pickerDropPos.left, width: pickerDropPos.width, maxHeight: 260 }}>
+                      <div className="overflow-y-auto" style={{ maxHeight: 260 }}>
+                        {pickerLoading && (
+                          <div className="px-4 py-3 text-xs text-gray-400 flex items-center gap-2">
+                            <span className="w-3 h-3 border-2 border-gray-200 border-t-accent rounded-full animate-spin" />
+                            Loading contacts…
+                          </div>
+                        )}
+                        {!pickerLoading && pickerError && (
+                          <div className="px-4 py-3 text-xs text-red-500">{pickerError}</div>
+                        )}
+                        {!pickerLoading && !pickerError && (() => {
+                          const q = pickerSearch.toLowerCase().trim()
+                          const clientLower = form.client_name.toLowerCase()
+                          const rows = pickerAll
+                            .filter(c =>
+                              (c.display_name || c.business_name || '').toLowerCase() !== clientLower &&
+                              (!q ||
+                                (c.display_name || '').toLowerCase().includes(q) ||
+                                (c.business_name || '').toLowerCase().includes(q) ||
+                                (c.client_code || '').toLowerCase().includes(q))
+                            )
+                            .slice(0, 9)
+                          return rows.length === 0
+                            ? <div className="px-4 py-3 text-xs text-gray-400">No contacts found.</div>
+                            : rows.map(c => (
+                              <button key={c.id} type="button"
+                                onClick={() => { setPendingGroup({ type: 'join', target: c }); setPickerSearch(''); setPickerOpen(false) }}
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors">
+                                <div className="min-w-0">
+                                  <p className="font-medium text-gray-900 truncate">{c.display_name || c.business_name}</p>
+                                  {c.client_code && <p className="text-xs text-gray-400 font-mono">{c.client_code}</p>}
+                                </div>
+                                <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full font-medium ${c.client_group_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                  {c.client_group_id ? `Join group ${c.client_group_id}` : 'New group'}
+                                </span>
+                              </button>
+                            ))
+                        })()}
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+                </>
               )}
             </div>
             <div>

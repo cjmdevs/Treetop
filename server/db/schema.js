@@ -422,6 +422,27 @@ function initializeDatabase() {
       UNIQUE(user_id, pref_key),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS invite_keys (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      key_hash         TEXT    NOT NULL,
+      username         TEXT    NOT NULL,
+      full_name        TEXT    NOT NULL,
+      email            TEXT,
+      role             TEXT    NOT NULL,
+      status           TEXT    NOT NULL DEFAULT 'pending',
+      created_by       INTEGER NOT NULL,
+      created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+      redeemed_at      TEXT,
+      redeemed_user_id INTEGER,
+      FOREIGN KEY (created_by)       REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (redeemed_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
   `);
 }
 

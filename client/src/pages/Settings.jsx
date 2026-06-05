@@ -8,8 +8,9 @@ import { contactClientTypesApi } from '../api/contactClientTypes'
 import { projectStatusesApi }    from '../api/projectStatuses'
 import { useAuth }               from '../context/AuthContext'
 import { useStatuses }           from '../context/StatusesContext'
-import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon, WifiIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon, WifiIcon, CheckCircleIcon, ExclamationTriangleIcon, ClipboardDocumentIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { getServerUrl, setServerUrl, testConnection, normalizeUrl } from '../config/serverConfig'
+import { inviteKeysApi } from '../api/inviteKeys'
 
 const FIELD_TYPES  = ['Text', 'Number', 'Date', 'Dropdown', 'Checkbox']
 const CATEGORIES   = ['Tax', 'Audit', 'Bookkeeping', 'Advisory', 'Admin', 'Other']
@@ -163,6 +164,18 @@ export default function Settings() {
   const [serverStatus, setServerStatus] = useState(null)   // null|'testing'|'ok'|'error'
   const [serverMsg,    setServerMsg]    = useState('')
 
+  // ── Invite keys ────────────────────────────────────────────────────────────
+  const BLANK_INVITE = { username: '', full_name: '', email: '', role: 'staff' }
+  const [inviteKeys,    setInviteKeys]    = useState([])
+  const [inviteForm,    setInviteForm]    = useState(BLANK_INVITE)
+  const [showInvForm,   setShowInvForm]   = useState(false)
+  const [inviteSaving,  setInviteSaving]  = useState(false)
+  const [inviteError,   setInviteError]   = useState('')
+  const [newKey,        setNewKey]        = useState(null)   // raw key after generation
+  const [copied,        setCopied]        = useState(false)
+
+  const loadInviteKeys = () => inviteKeysApi.list().then(setInviteKeys).catch(() => {})
+
   // ── Custom field scope — derived from nav selection ───────────────────────
   const fieldScope = tab === 'project-fields' ? 'project' : tab === 'contact-fields' ? 'contact' : 'engagement'
 
@@ -177,6 +190,7 @@ export default function Settings() {
   const loadStatuses    = () => projectStatusesApi.list({ include_inactive: 'true' }).then(setPsRows)
   useEffect(() => { loadFields(); loadCodes(); loadRates(); loadRules(); loadClientTypes(); loadStatuses() }, [])
   useEffect(() => { if (tab === 'accounts' || tab === 'rates') loadUsers() }, [tab, loadUsers])
+  useEffect(() => { if (tab === 'invite-keys') { loadInviteKeys(); setNewKey(null); setShowInvForm(false) } }, [tab])
 
   // Auto-test server connection when the server tab is opened
   useEffect(() => {
@@ -407,8 +421,9 @@ export default function Settings() {
       { key: 'rates', label: 'Staff Rates',   visible: true },
     ]},
     { label: 'System / Admin', items: [
-      { key: 'accounts', label: 'User Accounts',    visible: isAdmin },
-      { key: 'server',   label: 'Server Connection', visible: isAdmin },
+      { key: 'accounts',     label: 'User Accounts',    visible: isAdmin },
+      { key: 'invite-keys',  label: 'Invite Keys',      visible: isAdmin },
+      { key: 'server',       label: 'Server Connection', visible: isAdmin },
     ]},
   ]
 
@@ -1381,6 +1396,182 @@ export default function Settings() {
           </div>
         </div>
       )}
+      {/* ── Invite Keys ──────────────────────────────────────────────────────── */}
+      {tab === 'invite-keys' && (() => {
+        const setIF = f => e => setInviteForm(v => ({ ...v, [f]: e.target.value }))
+        const copyKey = async () => {
+          await navigator.clipboard.writeText(newKey).catch(() => {})
+          setCopied(true); setTimeout(() => setCopied(false), 2000)
+        }
+        const handleGenerate = async e => {
+          e.preventDefault(); setInviteError(''); setInviteSaving(true)
+          try {
+            const res = await inviteKeysApi.generate(inviteForm)
+            setNewKey(res.key)
+            setInviteForm(BLANK_INVITE)
+            setShowInvForm(false)
+            loadInviteKeys()
+          } catch (err) {
+            setInviteError(err.message || 'Failed to generate key')
+          } finally { setInviteSaving(false) }
+        }
+        const handleRevoke = async (id, username) => {
+          if (!confirm(`Revoke invite key for "${username}"? They will no longer be able to register with it.`)) return
+          await inviteKeysApi.revoke(id).catch(err => alert(err.message))
+          loadInviteKeys()
+        }
+        const statusBadge = s => {
+          if (s === 'pending')  return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
+          if (s === 'redeemed') return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Redeemed</span>
+          return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Revoked</span>
+        }
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <KeyIcon className="w-5 h-5 text-accent flex-shrink-0" />
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Invite Keys</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Generate single-use keys so new users can register their own password.</p>
+                </div>
+              </div>
+              {!showInvForm && (
+                <button onClick={() => { setShowInvForm(true); setNewKey(null); setInviteError('') }}
+                  className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
+                  + Generate Key
+                </button>
+              )}
+            </div>
+
+            {/* One-time key display */}
+            {newKey && (
+              <div className="bg-accent-light border border-accent-light rounded-xl p-5 mb-5">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-accent">Invite key generated</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Copy it now — this is the only time it will be shown.</p>
+                  </div>
+                  <button onClick={() => setNewKey(null)} className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0">Dismiss</button>
+                </div>
+                <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2.5 border border-accent-light">
+                  <code className="flex-1 text-sm font-mono text-gray-800 break-all select-all">{newKey}</code>
+                  <button onClick={copyKey}
+                    className="flex items-center gap-1 text-xs text-accent hover:text-accent-dark font-medium flex-shrink-0 transition-colors">
+                    <ClipboardDocumentIcon className="w-4 h-4" />
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Share via the <span className="font-mono">/register</span> page link on the login screen.
+                </p>
+              </div>
+            )}
+
+            {/* Generate form */}
+            {showInvForm && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5">
+                <p className="text-sm font-semibold text-gray-800 mb-4">New invite key</p>
+                {inviteError && (
+                  <div className="mb-3 flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    {inviteError}
+                  </div>
+                )}
+                <form onSubmit={handleGenerate} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Username *</label>
+                      <input required value={inviteForm.username} onChange={setIF('username')}
+                        placeholder="jsmith" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Full Name *</label>
+                      <input required value={inviteForm.full_name} onChange={setIF('full_name')}
+                        placeholder="Jane Smith" className={inputCls} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Email</label>
+                      <input type="email" value={inviteForm.email} onChange={setIF('email')}
+                        placeholder="jane@firm.com" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Role *</label>
+                      <select value={inviteForm.role} onChange={setIF('role')} className={inputCls}>
+                        <option value="staff">Staff</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button type="submit" disabled={inviteSaving}
+                      className="px-5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors flex items-center gap-2">
+                      {inviteSaving && <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                      Generate Key
+                    </button>
+                    <button type="button" onClick={() => setShowInvForm(false)}
+                      className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Keys table */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              {inviteKeys.length === 0 ? (
+                <div className="px-5 py-10 text-center text-gray-400 text-sm">
+                  No invite keys yet. Generate one to invite a new user.
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      <th className="px-5 py-3 text-left">Username</th>
+                      <th className="px-5 py-3 text-left">Name</th>
+                      <th className="px-5 py-3 text-left">Role</th>
+                      <th className="px-5 py-3 text-left">Status</th>
+                      <th className="px-5 py-3 text-left">Created by</th>
+                      <th className="px-5 py-3 text-left">Date</th>
+                      <th className="px-5 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inviteKeys.map(k => (
+                      <tr key={k.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                        <td className="px-5 py-3 font-mono text-xs text-gray-700">{k.username}</td>
+                        <td className="px-5 py-3 text-gray-900">{k.full_name}</td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                            k.role === 'admin'   ? 'bg-purple-100 text-purple-700' :
+                            k.role === 'manager' ? 'bg-blue-100 text-blue-700' :
+                                                   'bg-gray-100 text-gray-600'
+                          }`}>{k.role}</span>
+                        </td>
+                        <td className="px-5 py-3">{statusBadge(k.status)}</td>
+                        <td className="px-5 py-3 text-gray-500 text-xs">{k.created_by_name || '—'}</td>
+                        <td className="px-5 py-3 text-gray-400 text-xs">{k.redeemed_at ? `Redeemed ${k.redeemed_at.slice(0,10)}` : k.created_at?.slice(0,10)}</td>
+                        <td className="px-5 py-3 text-right">
+                          {k.status === 'pending' && (
+                            <button onClick={() => handleRevoke(k.id, k.username)}
+                              className="text-xs text-red-400 hover:text-red-600 font-medium">
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Server Connection ────────────────────────────────────────────────── */}
       {tab === 'server' && (
         <div className="max-w-lg">

@@ -34,6 +34,8 @@ db.exec(`
   DELETE FROM contacts;
   DELETE FROM contact_client_types;
   DELETE FROM projects;
+  DELETE FROM invite_keys;
+  DELETE FROM app_meta;
 `);
 db.pragma('foreign_keys = ON');
 

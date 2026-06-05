@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -98,7 +98,13 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center text-gray-600 text-xs mt-6">
+        <p className="text-center text-gray-500 text-xs mt-6">
+          Have an invite key?{' '}
+          <Link to="/register" className="text-accent hover:text-accent-dark underline underline-offset-2">
+            Register
+          </Link>
+        </p>
+        <p className="text-center text-gray-700 text-xs mt-2">
           Treetop Management · 2026
         </p>
       </div>

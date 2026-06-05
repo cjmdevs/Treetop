@@ -5,6 +5,7 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "seed": "node db/seed.js",
+    "seed:empty": "node db/seed-empty.js",
     "migrate:projects": "node db/migrate-to-projects.js",
     "test": "cross-env NODE_ENV=test jest --runInBand"
   },

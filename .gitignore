@@ -4,3 +4,4 @@ server/data/
 .env
 dist/
 server/data/*.db
+server/BOOTSTRAP_TOKEN.txt

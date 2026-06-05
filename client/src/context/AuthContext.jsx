@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem('treetop_auth_token')
     setUser(null)
-    window.location.href = '/login'
+    window.location.href = '/#/login'
   }, [])
 
   const isAdmin   = user?.role === 'admin'

@@ -381,7 +381,7 @@ function TasksTab({ project, onUpdate }) {
             <span className="text-xs text-gray-400 font-mono">{complete}/{subtasks.length} · {pct}%</span>
           )}
         </div>
-        <button onClick={() => setAdding(v => !v)} className="flex items-center gap-1 text-xs text-accent hover:text-blue-700">
+        <button onClick={() => setAdding(v => !v)} className="flex items-center gap-1 text-xs text-accent hover:text-accent-dark">
           <PlusIcon className="w-4 h-4" /> Add step
         </button>
       </div>
@@ -418,7 +418,7 @@ function TasksTab({ project, onUpdate }) {
         <form onSubmit={addTask} className="flex gap-2 mt-3">
           <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="Step title…"
             className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-          <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+          <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-accent-dark">Add</button>
           <button type="button" onClick={() => setAdding(false)} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
         </form>
       )}
@@ -523,7 +523,7 @@ function NotesActivityTab({ project }) {
         </select>
         <input value={text} onChange={e => setText(e.target.value)} placeholder="Add a note…"
           className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-        <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+        <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-accent-dark">Add</button>
       </form>
 
       {items.length === 0 ? (
@@ -828,7 +828,7 @@ export default function ProjectDetail() {
                   Cancel
                 </button>
                 <button type="submit" disabled={dupSaving || !dupPeriod.trim()}
-                  className="flex-1 px-4 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  className="flex-1 px-4 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
                   {dupSaving ? 'Creating…' : 'Duplicate'}
                 </button>
               </div>

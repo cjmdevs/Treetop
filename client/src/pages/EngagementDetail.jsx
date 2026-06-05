@@ -92,7 +92,7 @@ function SubtasksPanel({ engagementId }) {
           <h2 className="font-semibold text-gray-900">Checklist</h2>
           {subtasks.length > 0 && <span className="text-xs text-gray-400">{complete}/{subtasks.length} · {pct}%</span>}
         </div>
-        <button onClick={() => setAdding(v => !v)} className="text-accent hover:text-blue-700 text-sm flex items-center gap-1">
+        <button onClick={() => setAdding(v => !v)} className="text-accent hover:text-accent-dark text-sm flex items-center gap-1">
           <PlusIcon className="w-4 h-4" /> Add step
         </button>
       </div>
@@ -119,7 +119,7 @@ function SubtasksPanel({ engagementId }) {
         <form onSubmit={addSubtask} className="flex gap-2 mt-3">
           <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="Step title..."
             className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-          <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+          <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-accent-dark">Add</button>
           <button type="button" onClick={() => setAdding(false)} className="px-3 py-1.5 text-sm text-gray-500">Cancel</button>
         </form>
       )}
@@ -171,7 +171,7 @@ function NotesPanel({ engagementId }) {
         </select>
         <input value={text} onChange={e => setText(e.target.value)} placeholder="Add a note..."
           className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-        <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+        <button type="submit" className="px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-accent-dark">Add</button>
       </form>
     </div>
   )
@@ -256,7 +256,7 @@ export default function EngagementDetail() {
           <p className="text-gray-500 mt-1">
             {data.engagement_type}{data.tax_year ? ` · ${data.tax_year}` : ''}
             {data.recurrence_frequency !== 'None' && (
-              <span className="ml-2 text-xs bg-blue-50 text-accent px-2 py-0.5 rounded-full">↻ {data.recurrence_frequency}</span>
+              <span className="ml-2 text-xs bg-accent-light text-accent px-2 py-0.5 rounded-full">↻ {data.recurrence_frequency}</span>
             )}
           </p>
         </div>

@@ -146,7 +146,7 @@ export default function Dashboard() {
               <span className="font-mono text-gray-900">${totalAR.toLocaleString()}</span>
             </div>
           </div>
-          <button onClick={() => navigate('/ar')} className="mt-3 text-xs text-accent hover:text-blue-700 font-medium">
+          <button onClick={() => navigate('/ar')} className="mt-3 text-xs text-accent hover:text-accent-dark font-medium">
             View full AR →
           </button>
         </div>

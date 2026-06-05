@@ -31,18 +31,18 @@ export default function Login() {
       className="min-h-screen flex items-center justify-center bg-gray-950 px-4"
       style={{
         backgroundImage:
-          'radial-gradient(ellipse at 20% 50%, rgba(27,79,216,0.15) 0%, transparent 60%), ' +
-          'radial-gradient(ellipse at 80% 20%, rgba(27,79,216,0.08) 0%, transparent 50%)',
+          'radial-gradient(ellipse at 20% 50%, rgba(31,122,77,0.15) 0%, transparent 60%), ' +
+          'radial-gradient(ellipse at 80% 20%, rgba(31,122,77,0.08) 0%, transparent 50%)',
       }}
     >
       <div className="w-full max-w-sm">
         {/* Firm identity */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent mb-4 shadow-lg shadow-accent/30">
-            <span className="text-white font-bold text-xl tracking-tight select-none">M</span>
+            <span className="text-white font-bold text-xl tracking-tight select-none">T</span>
           </div>
-          <h1 className="text-white text-2xl font-bold tracking-tight">MGR CPAs</h1>
-          <p className="text-gray-500 text-sm mt-1">Maurer, Graf &amp; Rivera</p>
+          <h1 className="text-white text-2xl font-bold tracking-tight">Treetop Management</h1>
+          <p className="text-gray-500 text-sm mt-1">Practice Management</p>
         </div>
 
         {/* Card */}
@@ -91,7 +91,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-accent hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm py-2.5 rounded-lg transition-colors mt-2"
+              className="w-full bg-accent hover:bg-accent-dark disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm py-2.5 rounded-lg transition-colors mt-2"
             >
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
@@ -99,7 +99,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-gray-600 text-xs mt-6">
-          MGR CPAs Practice Management · 2026
+          Treetop Management · 2026
         </p>
       </div>
     </div>

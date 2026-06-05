@@ -42,7 +42,7 @@ function NavItem({ to, label, Icon }) {
         `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
           isActive
             ? 'bg-accent text-white'
-            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : 'text-gray-300 hover:text-white hover:bg-white/10'
         }`
       }
     >
@@ -60,17 +60,17 @@ export default function Sidebar() {
   const bottom = ALL_BOTTOM.filter(item => item.roles.includes(role))
 
   return (
-    <aside className="w-60 flex-shrink-0 bg-gray-900 flex flex-col">
-      <div className="px-6 py-5 border-b border-gray-700/60">
-        <p className="text-white font-bold text-lg leading-tight tracking-tight">MGR CPAs</p>
-        <p className="text-gray-400 text-xs mt-0.5">Maurer, Graf &amp; Rivera</p>
+    <aside className="w-60 flex-shrink-0 bg-sidebar flex flex-col">
+      <div className="px-6 py-5 border-b border-white/10">
+        <p className="text-white font-bold text-lg leading-tight tracking-tight">Treetop</p>
+        <p className="text-secondary text-xs mt-0.5 font-medium tracking-wide uppercase">Management</p>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {nav.map(item => <NavItem key={item.to} {...item} />)}
       </nav>
 
-      <div className="px-3 pb-4 border-t border-gray-700/60 pt-3 space-y-0.5">
+      <div className="px-3 pb-4 border-t border-white/10 pt-3 space-y-0.5">
         {bottom.map(item => <NavItem key={item.to} {...item} />)}
       </div>
     </aside>

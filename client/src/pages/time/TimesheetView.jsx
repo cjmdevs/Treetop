@@ -97,7 +97,7 @@ function AddRowModal({ engagements, serviceCodes, onAdd, onClose }) {
           <button
             disabled={!engId}
             onClick={() => onAdd(parseInt(engId), code || null)}
-            className="flex-1 py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-accent-dark disabled:opacity-50"
           >
             Add Row
           </button>

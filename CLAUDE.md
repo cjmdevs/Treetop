@@ -1,7 +1,7 @@
-# MGR CPAs — Practice Management App
+# Treetop Management — Practice Management App
 
 ## What This Is
-A full-stack practice management system for a CPA firm (Maurer, Graf & Rivera). Handles engagements, time tracking, billing, invoicing, staff management, notes, reports, and automations. Built for internal use — not a SaaS product.
+A full-stack practice management system for Treetop Management. Handles engagements, time tracking, billing, invoicing, staff management, notes, reports, and automations. Built for internal use — not a SaaS product.
 
 ---
 
@@ -35,17 +35,21 @@ Client proxies all `/api` requests to `localhost:3001` via Vite config.
 | Backend | Node.js, Express 4 |
 | Database | SQLite via better-sqlite3 (WAL mode) |
 | Auth | JWT (jsonwebtoken) + bcrypt (bcryptjs) |
-| DB file | `server/db/mgrcpas.db` (auto-created) |
+| DB file | `server/db/treetop.db` (auto-created) |
 
 ---
 
 ## Design System
 
-- **Accent color:** `#1B4FD8` (used as `bg-accent`, `text-accent`, `ring-accent` in Tailwind)
+- **Accent color:** `#1F7A4D` (deep forest green — `bg-accent`, `text-accent`, `ring-accent`)
+- **Accent dark (hover):** `#19663F` (`hover:bg-accent-dark`, `hover:text-accent-dark`)
+- **Accent light (fills):** `#E6F2EC` (`bg-accent-light`, subtle selected states)
+- **Secondary (warm bronze):** `#A8763E` — use sparingly for tags, chart series
+- **Sidebar:** `#0F1F17` (`bg-sidebar`) — deep forest near-black
 - **Fonts:** DM Sans (sans), DM Mono (mono) — loaded via Google Fonts in `client/index.html`
-- **Layout:** `bg-gray-900` sidebar (w-60) + white topbar + `bg-gray-50` content area
+- **Layout:** `bg-sidebar` sidebar (w-60) + white topbar + `bg-gray-50` content area
 - **Cards/panels:** `bg-white rounded-xl border border-gray-200`
-- **Buttons primary:** `bg-accent text-white hover:bg-blue-700`
+- **Buttons primary:** `bg-accent text-white hover:bg-accent-dark`
 - **Form inputs:** `border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent`
 
 ---
@@ -168,8 +172,8 @@ Migration pattern: `server/db/migrate.js` uses `PRAGMA table_info` guards before
 
 ## Auth Architecture
 
-- **JWT** stored in `localStorage` as `mgr_auth_token`, 24h expiry
-- **Secret:** `process.env.JWT_SECRET || 'mgrcpas-dev-secret-2026'`
+- **JWT** stored in `localStorage` as `treetop_auth_token`, 24h expiry
+- **Secret:** `process.env.JWT_SECRET || 'treetop-dev-secret-2026'`
 - **Middleware:** `requireAuth` in `server/middleware/auth.js` — skipped when `NODE_ENV=test`
 - **Flow:** POST /api/auth/login → `{ token, user }` → stored → all subsequent requests send `Authorization: Bearer <token>` header
 - **401 handling:** `client/src/api/client.js` removes token + redirects to `/login` on any 401

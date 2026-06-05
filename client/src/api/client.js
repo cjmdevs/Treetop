@@ -1,7 +1,7 @@
 const BASE = '/api'
 
 function getToken() {
-  return localStorage.getItem('mgr_auth_token')
+  return localStorage.getItem('treetop_auth_token')
 }
 
 async function request(path, options = {}) {
@@ -16,7 +16,7 @@ async function request(path, options = {}) {
   })
 
   if (res.status === 401) {
-    localStorage.removeItem('mgr_auth_token')
+    localStorage.removeItem('treetop_auth_token')
     // Only redirect if not already on login page
     if (!window.location.pathname.startsWith('/login')) {
       window.location.href = '/login'

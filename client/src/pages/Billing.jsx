@@ -77,7 +77,7 @@ export default function Billing() {
         <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
         <button
           onClick={() => setShowForm(v => !v)}
-          className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors"
         >
           + New Record
         </button>
@@ -171,7 +171,7 @@ export default function Billing() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save Record'}
               </button>
@@ -202,7 +202,7 @@ export default function Billing() {
                   <div className="flex flex-col gap-1">
                     {r.status === 'Unbilled' && (
                       <>
-                        <button onClick={() => handleStatusChange(r, 'Invoiced')} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <button onClick={() => handleStatusChange(r, 'Invoiced')} className="text-xs text-accent hover:text-accent-dark font-medium">
                           Mark Invoiced
                         </button>
                         <button

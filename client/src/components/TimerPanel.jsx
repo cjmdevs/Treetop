@@ -33,7 +33,7 @@ function NewTimerModal({ onStart, onClose }) {
         <button
           disabled={!engId}
           onClick={handleStart}
-          className="flex-1 py-1.5 text-xs font-semibold text-white bg-accent rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="flex-1 py-1.5 text-xs font-semibold text-white bg-accent rounded-lg hover:bg-accent-dark disabled:opacity-50"
         >
           Start Timer
         </button>
@@ -51,7 +51,7 @@ export default function TimerPanel() {
   if (timers.length === 0 && !showNew) return (
     <button
       onClick={() => setShowNew(true)}
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-2 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-2 rounded-full shadow-lg hover:bg-accent-dark transition-colors"
     >
       <PlusIcon className="w-3 h-3" />
       Start Timer

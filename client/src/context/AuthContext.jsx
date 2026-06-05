@@ -9,23 +9,23 @@ export function AuthProvider({ children }) {
 
   // On mount: validate stored token
   useEffect(() => {
-    const token = localStorage.getItem('mgr_auth_token')
+    const token = localStorage.getItem('treetop_auth_token')
     if (!token) { setLoading(false); return }
     authApi.me()
       .then(u => setUser(u))
-      .catch(() => localStorage.removeItem('mgr_auth_token'))
+      .catch(() => localStorage.removeItem('treetop_auth_token'))
       .finally(() => setLoading(false))
   }, [])
 
   const login = useCallback(async (username, password) => {
     const { token, user } = await authApi.login(username, password)
-    localStorage.setItem('mgr_auth_token', token)
+    localStorage.setItem('treetop_auth_token', token)
     setUser(user)
     return user
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem('mgr_auth_token')
+    localStorage.removeItem('treetop_auth_token')
     setUser(null)
     window.location.href = '/login'
   }, [])

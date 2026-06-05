@@ -75,7 +75,7 @@ export default function Engagements() {
             ))}
           </div>
           <button onClick={() => navigate('/engagements/new')}
-            className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+            className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
             + New Engagement
           </button>
         </div>
@@ -110,7 +110,7 @@ export default function Engagements() {
               {staff.map(s => <option key={s}>{s}</option>)}
             </select>
             <button onClick={applyBulk} disabled={bulkLoading || (!bulkStatus && !bulkStaff)}
-              className="px-4 py-1.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="px-4 py-1.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
               {bulkLoading ? 'Applying...' : 'Apply'}
             </button>
             <button onClick={() => setSelected(new Set())} className="text-sm text-gray-500 hover:text-gray-700 px-2">Clear</button>
@@ -147,7 +147,7 @@ export default function Engagements() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {paged.map(e => (
-                  <tr key={e.id} className={`hover:bg-gray-50 cursor-pointer ${selected.has(e.id) ? 'bg-blue-50' : ''}`}>
+                  <tr key={e.id} className={`hover:bg-gray-50 cursor-pointer ${selected.has(e.id) ? 'bg-accent-light' : ''}`}>
                     <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleSelect(e.id)}
                         className="rounded border-gray-300" />

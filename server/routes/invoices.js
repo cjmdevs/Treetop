@@ -6,9 +6,9 @@ function nextInvoiceNumber() {
   const year = new Date().getFullYear();
   const last = db.prepare(
     "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY id DESC LIMIT 1"
-  ).get(`MGR-${year}-%`);
+  ).get(`TRT-${year}-%`);
   const seq = last ? parseInt(last.invoice_number.split('-')[2]) + 1 : 1;
-  return `MGR-${year}-${String(seq).padStart(4, '0')}`;
+  return `TRT-${year}-${String(seq).padStart(4, '0')}`;
 }
 
 router.get('/', (req, res) => {

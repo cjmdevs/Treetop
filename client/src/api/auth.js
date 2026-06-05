@@ -13,7 +13,7 @@ export const authApi = {
   },
 
   me: async () => {
-    const token = localStorage.getItem('mgr_auth_token')
+    const token = localStorage.getItem('treetop_auth_token')
     if (!token) throw new Error('No token')
     const res = await fetch('/api/auth/me', {
       headers: {

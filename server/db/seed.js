@@ -78,9 +78,9 @@ const insertUser = db.prepare(`
 
 const userIds = {};
 [
-  ['mmaurer', 'admin123',   'Marcus Maurer', 'mmaurer@mgrcpas.com',       'admin',   350, '2026-01-01'],
-  ['sgraf',   'manager123', 'Sofia Graf',    'sgraf@mgrcpas.com',         'manager', 275, '2026-01-01'],
-  ['drivera', 'staff123',   'Diego Rivera',  'drivera@mgrcpas.com',       'staff',   175, '2026-01-01'],
+  ['mmaurer', 'admin123',   'Marcus Maurer', 'mmaurer@treetop.com',       'admin',   350, '2026-01-01'],
+  ['sgraf',   'manager123', 'Sofia Graf',    'sgraf@treetop.com',         'manager', 275, '2026-01-01'],
+  ['drivera', 'staff123',   'Diego Rivera',  'drivera@treetop.com',       'staff',   175, '2026-01-01'],
   ['carson',  'admin123',   'Carson',        'carsonjjmaurer@gmail.com',  'admin',     0, '2026-01-01'],
 ].forEach(([username, password, full_name, email, role, rate, date]) => {
   const hashed = bcrypt.hashSync(password, 10);

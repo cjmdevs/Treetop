@@ -51,7 +51,7 @@ export default function Notes() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Notes</h1>
-        <button onClick={() => setShowForm(v => !v)} className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <button onClick={() => setShowForm(v => !v)} className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
           + Add Note
         </button>
       </div>
@@ -93,7 +93,7 @@ export default function Notes() {
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                   {saving ? 'Saving...' : 'Save Note'}
                 </button>
               </div>

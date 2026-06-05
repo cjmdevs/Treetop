@@ -397,7 +397,7 @@ export default function Reports() {
               )}
               <div className="flex gap-2 ml-auto">
                 <button onClick={run} disabled={loading || !periodId}
-                  className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
                   {loading ? 'Running…' : 'Run Report'}
                 </button>
                 {result?.data?.length > 0 && (
@@ -444,7 +444,7 @@ export default function Reports() {
               )}
               <div className="flex justify-end gap-2">
                 <button onClick={run} disabled={loading}
-                  className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
                   {loading ? 'Running…' : 'Run Report'}
                 </button>
                 {result?.data?.length > 0 && (

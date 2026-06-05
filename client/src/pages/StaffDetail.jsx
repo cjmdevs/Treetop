@@ -77,14 +77,14 @@ function TrendLine({ trend }) {
       <svg width={w} height={h} className="overflow-visible">
         <defs>
           <linearGradient id="trend-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1B4FD8" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#1B4FD8" stopOpacity="0" />
+            <stop offset="0%" stopColor="#1F7A4D" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#1F7A4D" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={area} fill="url(#trend-grad)" />
-        <path d={path} fill="none" stroke="#1B4FD8" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path} fill="none" stroke="#1F7A4D" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3" fill="#1B4FD8" />
+          <circle key={i} cx={p.x} cy={p.y} r="3" fill="#1F7A4D" />
         ))}
       </svg>
       <div className="flex justify-between mt-1">

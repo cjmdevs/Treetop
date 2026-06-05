@@ -377,7 +377,7 @@ export default function ContactDetail() {
         <div className="px-5 py-4 border-t border-gray-100 space-y-2 mt-auto">
           <button
             onClick={() => setShowEdit(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark"
           >
             <PencilIcon className="w-4 h-4" /> Edit Contact
           </button>
@@ -501,12 +501,12 @@ export default function ContactDetail() {
                           {!groupLoading && !groupError && pickerRows.map(r => (
                             <button key={r.id} type="button" onClick={() => handleJoinGroup(r)}
                               disabled={groupBusy}
-                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors disabled:opacity-50">
+                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent-light flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors disabled:opacity-50">
                               <div className="min-w-0">
                                 <p className="font-medium text-gray-900 truncate">{r.display_name || r.business_name}</p>
                                 {r.client_code && <p className="text-xs text-gray-400 font-mono">{r.client_code}</p>}
                               </div>
-                              <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full font-medium ${r.client_group_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                              <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full font-medium ${r.client_group_id ? 'bg-accent-light text-accent' : 'bg-gray-100 text-gray-500'}`}>
                                 {r.client_group_id ? `Join group ${r.client_group_id}` : 'New group'}
                               </span>
                             </button>
@@ -763,7 +763,7 @@ function EngagementsTab({ contact }) {
         </div>
         <button
           onClick={() => navigate(`/engagements/new?client=${encodeURIComponent(contact.display_name)}`)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent-dark"
         >
           <PlusIcon className="w-3.5 h-3.5" /> New Engagement
         </button>
@@ -851,7 +851,7 @@ function ActivityTab({ contact, logOpen, setLogOpen, logForm, setLogForm, onLog,
         <h3 className="font-semibold text-gray-900">Activity Timeline</h3>
         <button
           onClick={() => setLogOpen(o => !o)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent-dark"
         >
           <PlusIcon className="w-3.5 h-3.5" /> Log Activity
         </button>
@@ -888,7 +888,7 @@ function ActivityTab({ contact, logOpen, setLogOpen, logForm, setLogForm, onLog,
           />
           <div className="flex justify-end gap-2 mt-3">
             <button type="button" onClick={() => setLogOpen(false)} className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={logSaving} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={logSaving} className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-dark disabled:opacity-50">
               {logSaving ? 'Saving…' : 'Log'}
             </button>
           </div>

@@ -1,4 +1,4 @@
-# MGR CPAs API Routes
+# Treetop Management API Routes
 
 Base URL: `http://localhost:3001`
 

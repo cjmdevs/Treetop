@@ -281,7 +281,7 @@ function ColumnCustomizer({ selected, onChange, onClose, allColumns }) {
             <div className="flex items-center justify-between mb-3 h-6">
               {highlightAvail && (
                 <button onClick={() => { const c = avail.find(c => c.key === highlightAvail); if(c) addCol(c) }}
-                  className="text-xs text-accent hover:text-blue-700 font-medium">→ Add</button>
+                  className="text-xs text-accent hover:text-accent-dark font-medium">→ Add</button>
               )}
               {highlightSel && (
                 <button onClick={() => { const c = sel.find(c => c.key === highlightSel); if(c) removeCol(c) }}
@@ -316,7 +316,7 @@ function ColumnCustomizer({ selected, onChange, onClose, allColumns }) {
 
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
-          <button onClick={apply} className="px-5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700">Apply</button>
+          <button onClick={apply} className="px-5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark">Apply</button>
         </div>
       </div>
     </div>
@@ -489,7 +489,7 @@ function GridView({ projects, selectedCols, navigate, allColumns }) {
                 <tr
                   key={p.id}
                   onClick={() => navigate(`/projects/${p.id}`)}
-                  className={`cursor-pointer transition-colors hover:bg-blue-50/30 ${isOverdue(p) ? 'bg-red-50/20' : ''}`}
+                  className={`cursor-pointer transition-colors hover:bg-accent-light/30 ${isOverdue(p) ? 'bg-red-50/20' : ''}`}
                 >
                   {cols.map(col => (
                     <td key={col.key} className="px-3 py-2 whitespace-nowrap">
@@ -754,7 +754,7 @@ export default function Projects() {
             )}
 
             <button onClick={() => navigate('/projects/new')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+              className="flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark">
               <PlusIcon className="w-4 h-4" /> New Project
             </button>
           </div>
@@ -869,7 +869,7 @@ export default function Projects() {
             />
             <div className="flex gap-2">
               <button onClick={() => setShowSaveModal(false)} className="flex-1 px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={saveView} className="flex-1 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700">Save</button>
+              <button onClick={saveView} className="flex-1 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark">Save</button>
             </div>
           </div>
         </div>

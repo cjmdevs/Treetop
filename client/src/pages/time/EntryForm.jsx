@@ -224,7 +224,7 @@ export default function EntryForm({
                 type="checkbox"
                 checked={form.billable}
                 onChange={e => set('billable', e.target.checked)}
-                className="rounded accent-[#1B4FD8]"
+                className="rounded accent-[#1F7A4D]"
               />
               Billable
             </label>
@@ -233,7 +233,7 @@ export default function EntryForm({
                 type="checkbox"
                 checked={form.internal_memo}
                 onChange={e => set('internal_memo', e.target.checked)}
-                className="rounded accent-[#1B4FD8]"
+                className="rounded accent-[#1F7A4D]"
               />
               Internal
             </label>
@@ -242,7 +242,7 @@ export default function EntryForm({
             <button
               type="submit"
               disabled={saving || !form.engagement_id || !form.hours}
-              className="w-full py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
             >
               {saved ? <><CheckIcon className="w-4 h-4" /> Saved</> : saving ? 'Saving…' : 'Save'}
             </button>

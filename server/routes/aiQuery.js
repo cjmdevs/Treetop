@@ -116,7 +116,7 @@ router.post('/projects-query', async (req, res) => {
   try {
     const context = buildContext();
 
-    const systemPrompt = `You are an AI assistant for MGR CPAs, a CPA firm practice management system.
+    const systemPrompt = `You are an AI assistant for Treetop Management, a CPA firm practice management system.
 You answer questions about the firm's projects (engagements, tax returns, bookkeeping, audits, etc.).
 Today's date is ${context.today}.
 Be concise and direct. Format lists with line breaks. Use numbers and facts from the data.

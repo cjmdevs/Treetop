@@ -8,7 +8,7 @@ function createDb() {
   }
   const dataDir = path.join(__dirname, '..', 'data');
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  return new Database(path.join(dataDir, 'mgrcpas.db'));
+  return new Database(path.join(dataDir, 'treetop.db'));
 }
 
 const db = createDb();

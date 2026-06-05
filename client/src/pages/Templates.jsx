@@ -56,7 +56,7 @@ export default function Templates() {
           <h1 className="text-2xl font-bold text-gray-900">Workflow Templates</h1>
           <p className="text-sm text-gray-500 mt-1">Reusable checklists applied when creating engagements</p>
         </div>
-        <button onClick={openNew} className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <button onClick={openNew} className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
           + New Template
         </button>
       </div>
@@ -87,7 +87,7 @@ export default function Templates() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-700">Checklist Steps</label>
-                <button type="button" onClick={addStep} className="text-xs text-accent hover:text-blue-700 flex items-center gap-1">
+                <button type="button" onClick={addStep} className="text-xs text-accent hover:text-accent-dark flex items-center gap-1">
                   <PlusIcon className="w-3 h-3" /> Add step
                 </button>
               </div>
@@ -118,7 +118,7 @@ export default function Templates() {
 
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={close} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-              <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Template'}
               </button>
             </div>

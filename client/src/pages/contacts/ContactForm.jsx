@@ -477,7 +477,7 @@ export default function ContactForm({ contact, onSave, onClose }) {
           <Field label="Tags">
             <div className="border border-gray-200 rounded-lg px-3 py-2 min-h-[42px] flex flex-wrap gap-1.5 focus-within:ring-2 focus-within:ring-accent">
               {form.tags.map(tag => (
-                <span key={tag} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+                <span key={tag} className="inline-flex items-center gap-1 bg-accent-light text-accent text-xs px-2 py-0.5 rounded-full">
                   {tag}
                   <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-500 leading-none">&times;</button>
                 </span>
@@ -569,7 +569,7 @@ export default function ContactForm({ contact, onSave, onClose }) {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-5 py-2 text-sm bg-accent text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="px-5 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
           >
             {saving ? 'Saving…' : (isEdit ? 'Save Changes' : 'Create Contact')}
           </button>

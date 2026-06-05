@@ -192,7 +192,7 @@ export default function EngagementForm() {
           <button type="button" onClick={() => navigate(-1)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
             {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Engagement'}
           </button>
         </div>

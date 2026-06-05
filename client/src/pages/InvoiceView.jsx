@@ -18,7 +18,7 @@ export default function InvoiceView() {
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
           <ArrowLeftIcon className="w-4 h-4" /> Back
         </button>
-        <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
           <PrinterIcon className="w-4 h-4" /> Print / Save PDF
         </button>
       </div>
@@ -27,8 +27,8 @@ export default function InvoiceView() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">MGR CPAs</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Maurer, Graf & Rivera</p>
+            <h1 className="text-2xl font-bold text-gray-900">Treetop Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Practice Management</p>
           </div>
           <div className="text-right">
             <p className="text-3xl font-bold font-mono text-accent">{inv.invoice_number}</p>

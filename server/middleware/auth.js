@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken')
 
-const JWT_SECRET = process.env.JWT_SECRET || 'mgrcpas-dev-secret-2026'
+const JWT_SECRET = process.env.JWT_SECRET || 'treetop-dev-secret-2026'
 
 function requireAuth(req, res, next) {
   // Skip auth in test environment

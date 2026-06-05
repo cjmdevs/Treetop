@@ -1,7 +1,79 @@
+/* ─── Brand palette ────────────────────────────────────────────────────────
+   Channel values (R G B, no commas) for use with Tailwind's opacity syntax.
+   Changing these values is sufficient to retheme the entire app.
+─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --color-accent:       31 122 77;    /* #1F7A4D  deep forest green   */
+  --color-accent-dark:  25 102 63;    /* #19663F  pressed / hover     */
+  --color-accent-light: 230 242 236;  /* #E6F2EC  subtle fills        */
+  --color-secondary:    168 118 62;   /* #A8763E  warm bronze         */
+  --color-sidebar:      15 31 23;     /* #0F1F17  near-black forest   */
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Accent color overrides ───────────────────────────────────────────────
+   These plain-CSS rules are intentionally placed AFTER @tailwind utilities.
+   In CSS source order, later rules with equal specificity win, so these
+   reliably override whatever value Tailwind's JIT cache compiled for the
+   accent token.  They use CSS custom properties so the `:root` block above
+   is the single source of truth for all brand colors.
+─────────────────────────────────────────────────────────────────────────── */
+
+/* accent ----------------------------------------------------------------- */
+.bg-accent       { --tw-bg-opacity:1; background-color: rgb(var(--color-accent) / var(--tw-bg-opacity,1)); }
+.bg-accent\/5    { background-color: rgb(var(--color-accent) / .05); }
+.bg-accent\/10   { background-color: rgb(var(--color-accent) / .10); }
+.bg-accent\/40   { background-color: rgb(var(--color-accent) / .40); }
+.bg-accent\/60   { background-color: rgb(var(--color-accent) / .60); }
+.bg-accent\/70   { background-color: rgb(var(--color-accent) / .70); }
+.text-accent     { --tw-text-opacity:1; color: rgb(var(--color-accent) / var(--tw-text-opacity,1)); }
+.text-accent\/60 { color: rgb(var(--color-accent) / .60); }
+.text-accent\/70 { color: rgb(var(--color-accent) / .70); }
+.border-accent   { --tw-border-opacity:1; border-color: rgb(var(--color-accent) / var(--tw-border-opacity,1)); }
+.border-accent\/20 { border-color: rgb(var(--color-accent) / .20); }
+.border-accent\/30 { border-color: rgb(var(--color-accent) / .30); }
+.border-accent\/40 { border-color: rgb(var(--color-accent) / .40); }
+.border-t-accent { --tw-border-opacity:1; border-top-color: rgb(var(--color-accent) / var(--tw-border-opacity,1)); }
+.ring-accent     { --tw-ring-opacity:1; --tw-ring-color: rgb(var(--color-accent) / var(--tw-ring-opacity,1)); }
+.ring-accent\/30 { --tw-ring-color: rgb(var(--color-accent) / .30); }
+.shadow-accent\/30 { --tw-shadow-color: rgb(var(--color-accent) / .30); --tw-shadow: var(--tw-shadow-colored); }
+.hover\:bg-accent:hover      { --tw-bg-opacity:1; background-color: rgb(var(--color-accent) / var(--tw-bg-opacity,1)); }
+.hover\:bg-accent\/5:hover   { background-color: rgb(var(--color-accent) / .05); }
+.hover\:bg-accent\/10:hover  { background-color: rgb(var(--color-accent) / .10); }
+.hover\:text-accent:hover    { --tw-text-opacity:1; color: rgb(var(--color-accent) / var(--tw-text-opacity,1)); }
+.hover\:border-accent:hover  { --tw-border-opacity:1; border-color: rgb(var(--color-accent) / var(--tw-border-opacity,1)); }
+.focus\:ring-accent:focus    { --tw-ring-opacity:1; --tw-ring-color: rgb(var(--color-accent) / var(--tw-ring-opacity,1)); }
+.focus-within\:ring-accent:focus-within { --tw-ring-opacity:1; --tw-ring-color: rgb(var(--color-accent) / var(--tw-ring-opacity,1)); }
+.group:hover .group-hover\:bg-accent   { --tw-bg-opacity:1; background-color: rgb(var(--color-accent) / var(--tw-bg-opacity,1)); }
+.group:hover .group-hover\:text-accent { --tw-text-opacity:1; color: rgb(var(--color-accent) / var(--tw-text-opacity,1)); }
+
+/* accent-dark ------------------------------------------------------------ */
+.bg-accent-dark               { --tw-bg-opacity:1; background-color: rgb(var(--color-accent-dark) / var(--tw-bg-opacity,1)); }
+.hover\:bg-accent-dark:hover  { --tw-bg-opacity:1; background-color: rgb(var(--color-accent-dark) / var(--tw-bg-opacity,1)); }
+.text-accent-dark             { --tw-text-opacity:1; color: rgb(var(--color-accent-dark) / var(--tw-text-opacity,1)); }
+.hover\:text-accent-dark:hover{ --tw-text-opacity:1; color: rgb(var(--color-accent-dark) / var(--tw-text-opacity,1)); }
+
+/* accent-light ----------------------------------------------------------- */
+.bg-accent-light              { --tw-bg-opacity:1; background-color: rgb(var(--color-accent-light) / var(--tw-bg-opacity,1)); }
+.hover\:bg-accent-light:hover { --tw-bg-opacity:1; background-color: rgb(var(--color-accent-light) / var(--tw-bg-opacity,1)); }
+.border-accent-light          { --tw-border-opacity:1; border-color: rgb(var(--color-accent-light) / var(--tw-border-opacity,1)); }
+.text-accent-light            { --tw-text-opacity:1; color: rgb(var(--color-accent-light) / var(--tw-text-opacity,1)); }
+.bg-accent-light\/30          { background-color: rgb(var(--color-accent-light) / .30); }
+
+/* secondary — warm bronze ------------------------------------------------ */
+.bg-secondary               { --tw-bg-opacity:1; background-color: rgb(var(--color-secondary) / var(--tw-bg-opacity,1)); }
+.hover\:bg-secondary:hover  { --tw-bg-opacity:1; background-color: rgb(var(--color-secondary) / var(--tw-bg-opacity,1)); }
+.text-secondary             { --tw-text-opacity:1; color: rgb(var(--color-secondary) / var(--tw-text-opacity,1)); }
+.border-secondary           { --tw-border-opacity:1; border-color: rgb(var(--color-secondary) / var(--tw-border-opacity,1)); }
+.bg-secondary\/10           { background-color: rgb(var(--color-secondary) / .10); }
+
+/* sidebar ---------------------------------------------------------------- */
+.bg-sidebar { --tw-bg-opacity:1; background-color: rgb(var(--color-sidebar) / var(--tw-bg-opacity,1)); }
+
+/* ─── Keyframe animations ─────────────────────────────────────────────── */
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }

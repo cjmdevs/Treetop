@@ -75,7 +75,7 @@ export default function Contacts() {
   const [clientTypes, setClientTypes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [presets, setPresets] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('mgrcpas_contact_filter_presets') || '[]') }
+    try { return JSON.parse(localStorage.getItem('treetop_contact_filter_presets') || '[]') }
     catch { return [] }
   })
   const [savingPreset, setSavingPreset] = useState(false)
@@ -139,7 +139,7 @@ export default function Contacts() {
     if (!trimmed) return
     const updated = [...presets.filter(p => p.name !== trimmed), { name: trimmed, filters: { ...filters } }]
     setPresets(updated)
-    localStorage.setItem('mgrcpas_contact_filter_presets', JSON.stringify(updated))
+    localStorage.setItem('treetop_contact_filter_presets', JSON.stringify(updated))
     setSavingPreset(false)
     setPresetName('')
   }
@@ -147,7 +147,7 @@ export default function Contacts() {
   function deletePreset(name) {
     const updated = presets.filter(p => p.name !== name)
     setPresets(updated)
-    localStorage.setItem('mgrcpas_contact_filter_presets', JSON.stringify(updated))
+    localStorage.setItem('treetop_contact_filter_presets', JSON.stringify(updated))
   }
 
   function applyPreset(preset) {
@@ -199,7 +199,7 @@ export default function Contacts() {
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark"
           >
             <PlusIcon className="w-4 h-4" />
             New Contact
@@ -214,13 +214,13 @@ export default function Contacts() {
           {presets.map(p => (
             <span
               key={p.name}
-              className="inline-flex items-center gap-1 bg-blue-50 text-accent text-xs px-2.5 py-1 rounded-full border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors"
+              className="inline-flex items-center gap-1 bg-accent-light text-accent text-xs px-2.5 py-1 rounded-full border border-accent-light cursor-pointer hover:bg-accent-light transition-colors"
               onClick={() => applyPreset(p)}
             >
               {p.name}
               <button
                 onClick={e => { e.stopPropagation(); deletePreset(p.name) }}
-                className="hover:text-red-500 text-blue-400 leading-none ml-0.5 font-medium"
+                className="hover:text-red-500 text-accent/60 leading-none ml-0.5 font-medium"
               >
                 &times;
               </button>
@@ -305,7 +305,7 @@ export default function Contacts() {
             />
             <button
               onClick={() => savePreset(presetName)}
-              className="px-2.5 py-2 bg-accent text-white text-xs rounded-lg hover:bg-blue-700"
+              className="px-2.5 py-2 bg-accent text-white text-xs rounded-lg hover:bg-accent-dark"
             >
               Save
             </button>

@@ -429,7 +429,7 @@ export default function Settings() {
               {fieldScope === 'project' ? 'Add custom columns to the Projects grid.' : fieldScope === 'contact' ? 'Add custom fields to every contact record.' : 'Add custom fields to every engagement.'}
             </p>
             <button onClick={() => { setEditingField('new'); setFieldForm({ ...BLANK_FIELD, sort_order: fields.filter(f => (f.scope||'engagement')===fieldScope).length, scope: fieldScope }) }}
-              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
               + Add Field
             </button>
           </div>
@@ -461,7 +461,7 @@ export default function Settings() {
                 )}
                 <div className="flex justify-end gap-3">
                   <button type="button" onClick={() => setEditingField(null)} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                     {saving ? 'Saving...' : 'Save Field'}
                   </button>
                 </div>
@@ -511,7 +511,7 @@ export default function Settings() {
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-gray-500">Define project workflow statuses. These power the Kanban board and grid badges.</p>
             <button onClick={() => { setEditingPS('new'); setPsForm(BLANK_STATUS); setPsError('') }}
-              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
               + Add Status
             </button>
           </div>
@@ -563,7 +563,7 @@ export default function Settings() {
                   <button type="button" onClick={() => { setEditingPS(null); setPsForm(BLANK_STATUS); setPsError('') }}
                     className="px-4 py-2 text-sm text-gray-600">Cancel</button>
                   <button type="submit" disabled={saving}
-                    className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                     {saving ? 'Saving...' : 'Save Status'}
                   </button>
                 </div>
@@ -640,7 +640,7 @@ export default function Settings() {
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-gray-500">Service codes categorize time entries for billing and reporting.</p>
             <button onClick={() => { setEditingCode('new'); setCodeForm(BLANK_CODE) }}
-              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
               + Add Code
             </button>
           </div>
@@ -703,7 +703,7 @@ export default function Settings() {
                   </div>
                   <div className="flex justify-end gap-3">
                     <button type="button" onClick={() => setEditingCode(null)} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                    <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                       {saving ? 'Saving...' : 'Save Code'}
                     </button>
                   </div>
@@ -883,7 +883,7 @@ export default function Settings() {
             <p className="text-sm text-gray-500">Hourly billing rates per staff member. Multiple rates are tracked with effective dates.</p>
             <button
               onClick={() => { setEditingRate('new'); setRateForm({ ...BLANK_RATE, effective_date: new Date().toISOString().split('T')[0] }) }}
-              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors"
             >
               + Add Rate
             </button>
@@ -921,7 +921,7 @@ export default function Settings() {
                 </div>
                 <div className="col-span-3 flex justify-end gap-3">
                   <button type="button" onClick={() => { setEditingRate(null); setRateForm(BLANK_RATE) }} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                     {saving ? 'Saving...' : 'Save Rate'}
                   </button>
                 </div>
@@ -996,7 +996,7 @@ export default function Settings() {
             <h2 className="text-base font-semibold text-gray-800">User Accounts</h2>
             <button
               onClick={() => { setUserForm({ ...BLANK_USER }); setUserError('') }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors"
             >
               + New User
             </button>
@@ -1114,7 +1114,7 @@ export default function Settings() {
                       setUserSaving(false)
                     }
                   }}
-                  className="px-4 py-1.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                  className="px-4 py-1.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-60 transition-colors"
                 >
                   {userSaving ? 'Saving…' : 'Save'}
                 </button>
@@ -1139,7 +1139,7 @@ export default function Settings() {
             </p>
             <button
               onClick={() => { setEditingCT('new'); setCtForm({ ...BLANK_CT, sort_order: clientTypes.length }); setCtError('') }}
-              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors"
             >
               + Add Type
             </button>
@@ -1180,7 +1180,7 @@ export default function Settings() {
                 </div>
                 <div className="col-span-3 flex justify-end gap-3">
                   <button type="button" onClick={() => { setEditingCT(null); setCtError('') }} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                     {saving ? 'Saving...' : 'Save Type'}
                   </button>
                 </div>
@@ -1255,7 +1255,7 @@ export default function Settings() {
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-gray-500">Rules run automatically when triggers fire during normal operations.</p>
             <button onClick={() => { setEditingRule('new'); setRuleForm(BLANK_RULE) }}
-              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors">
               + Add Rule
             </button>
           </div>
@@ -1303,7 +1303,7 @@ export default function Settings() {
                 </div>
                 <div className="flex justify-end gap-3">
                   <button type="button" onClick={() => setEditingRule(null)} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                     {saving ? 'Saving...' : 'Save Rule'}
                   </button>
                 </div>

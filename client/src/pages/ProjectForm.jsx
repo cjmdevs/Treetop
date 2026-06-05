@@ -351,9 +351,9 @@ export default function ProjectForm() {
             <div className="col-span-2">
               <label className={lbl}>Client *</label>
               {selectedContactId ? (
-                <div className="flex items-center gap-2 px-3 py-2 border border-blue-200 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2 px-3 py-2 border border-accent-light bg-accent-light rounded-lg">
                   <p className="text-sm font-medium text-gray-900 flex-1 truncate">{form.client_name}</p>
-                  <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full flex-shrink-0">Linked</span>
+                  <span className="text-xs font-medium text-accent bg-white px-2 py-0.5 rounded-full flex-shrink-0">Linked</span>
                   <button type="button" onClick={handleClientClear}
                     className="text-xs text-gray-400 hover:text-gray-600 underline flex-shrink-0">Change</button>
                 </div>
@@ -391,7 +391,7 @@ export default function ProjectForm() {
                               : rows.map(c => (
                                 <button key={c.id} type="button"
                                   onClick={() => handleClientSelect(c)}
-                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors">
+                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent-light flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors">
                                   <div className="min-w-0">
                                     <p className="font-medium text-gray-900 truncate">{c.display_name || c.business_name}</p>
                                     {c.client_code && <p className="text-xs text-gray-400 font-mono">{c.client_code}</p>}
@@ -403,7 +403,7 @@ export default function ProjectForm() {
                               <button type="button"
                                 onMouseDown={e => e.preventDefault()}
                                 onClick={() => { setClientDropOpen(false); setShowNewContactForm(true) }}
-                                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 font-medium transition-colors">
+                                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-accent-light flex items-center gap-2 font-medium transition-colors">
                                 <PlusCircleIcon className="w-4 h-4 flex-shrink-0" />
                                 New client
                               </button>
@@ -435,13 +435,13 @@ export default function ProjectForm() {
 
               /* Pending join */
               ) : pendingGroup?.type === 'join' ? (
-                <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                  <UsersIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <div className="flex items-center gap-3 px-3 py-2 bg-accent-light border border-accent-light rounded-lg">
+                  <UsersIcon className="w-4 h-4 text-accent flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-blue-800 truncate">
+                    <p className="text-sm font-medium text-accent-dark truncate">
                       Will group with {pendingGroup.target.display_name || pendingGroup.target.business_name}
                     </p>
-                    <p className="text-xs text-blue-500">Saved when you click Save Changes</p>
+                    <p className="text-xs text-accent/70">Saved when you click Save Changes</p>
                   </div>
                   <button type="button" onClick={() => setPendingGroup(null)}
                     className="text-xs text-red-400 hover:text-red-600 flex-shrink-0">Cancel</button>
@@ -449,12 +449,12 @@ export default function ProjectForm() {
 
               /* Currently in a group (loaded from contact) */
               ) : contactGroupId ? (
-                <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                  <UsersIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <div className="flex items-center gap-3 px-3 py-2 bg-accent-light border border-accent-light rounded-lg">
+                  <UsersIcon className="w-4 h-4 text-accent flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-blue-800">Group {contactGroupId}</p>
+                    <p className="text-sm font-medium text-accent-dark">Group {contactGroupId}</p>
                     {contactGroupMembers.length > 0 && (
-                      <p className="text-xs text-blue-600 truncate">
+                      <p className="text-xs text-accent truncate">
                         With: {contactGroupMembers.map(m => m.display_name || m.business_name).join(', ')}
                       </p>
                     )}
@@ -505,12 +505,12 @@ export default function ProjectForm() {
                             : rows.map(c => (
                               <button key={c.id} type="button"
                                 onClick={() => { setPendingGroup({ type: 'join', target: c }); setPickerSearch(''); setPickerOpen(false) }}
-                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors">
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent-light flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 transition-colors">
                                 <div className="min-w-0">
                                   <p className="font-medium text-gray-900 truncate">{c.display_name || c.business_name}</p>
                                   {c.client_code && <p className="text-xs text-gray-400 font-mono">{c.client_code}</p>}
                                 </div>
-                                <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full font-medium ${c.client_group_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full font-medium ${c.client_group_id ? 'bg-accent-light text-accent' : 'bg-gray-100 text-gray-500'}`}>
                                   {c.client_group_id ? `Join group ${c.client_group_id}` : 'New group'}
                                 </span>
                               </button>
@@ -648,7 +648,7 @@ export default function ProjectForm() {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-6 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
           >
             {loading ? 'Saving…' : isNew ? 'Create Project' : 'Save Changes'}
           </button>

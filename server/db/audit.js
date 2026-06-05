@@ -1,4 +1,4 @@
-// MGR CPAs — Database Integrity Audit
+// Treetop Management — Database Integrity Audit
 // Usage: node server/db/audit.js
 // Read-only: makes NO changes to the database.
 

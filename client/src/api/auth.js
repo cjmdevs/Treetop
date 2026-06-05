@@ -1,6 +1,8 @@
+import { getServerUrl } from '../config/serverConfig'
+
 export const authApi = {
   login: async (username, password) => {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(`${getServerUrl()}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
@@ -15,7 +17,7 @@ export const authApi = {
   me: async () => {
     const token = localStorage.getItem('treetop_auth_token')
     if (!token) throw new Error('No token')
-    const res = await fetch('/api/auth/me', {
+    const res = await fetch(`${getServerUrl()}/api/auth/me`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,

@@ -5,6 +5,7 @@ import { AuthProvider }     from './context/AuthContext'
 import { StatusesProvider } from './context/StatusesContext'
 import ProtectedRoute      from './components/ProtectedRoute'
 import Layout              from './components/Layout'
+import ServerSetup         from './pages/ServerSetup'
 import Login               from './pages/Login'
 import Dashboard           from './pages/Dashboard'
 import Engagements         from './pages/Engagements'
@@ -27,8 +28,19 @@ import Projects            from './pages/Projects'
 import ProjectDetail       from './pages/ProjectDetail'
 import ProjectForm         from './pages/ProjectForm'
 import ByClientView        from './pages/ByClientView'
+import { hasServerUrl }    from './config/serverConfig'
 
-export default function App() {
+/**
+ * Wraps all routes that require a configured server URL.
+ * If no URL has been saved yet, redirects to the first-launch setup screen.
+ * This guard runs before AuthProvider so auth calls are never made without
+ * a valid server address.
+ */
+function AppWithServer() {
+  if (!hasServerUrl()) {
+    return <Navigate to="/server-setup" replace />
+  }
+
   return (
     <AuthProvider>
       <StatusesProvider>
@@ -85,5 +97,17 @@ export default function App() {
       </TimerProvider>
       </StatusesProvider>
     </AuthProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Server setup — always accessible, no auth or server required */}
+      <Route path="/server-setup" element={<ServerSetup />} />
+
+      {/* Everything else — guarded: must have a saved server URL first */}
+      <Route path="*" element={<AppWithServer />} />
+    </Routes>
   )
 }

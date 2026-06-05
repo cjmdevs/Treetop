@@ -5,11 +5,23 @@ const { initializeDatabase } = require('./db/schema');
 const { requireAuth }        = require('./middleware/auth');
 
 const app = express();
-app.use(cors());
+
+// ── CORS — must be first so preflight OPTIONS requests succeed ────────────────
+// For an internal LAN tool we reflect the request origin so any machine on the
+// network can reach the server.  In a production deployment this could be
+// tightened to specific workstation origins if desired.
+app.use(cors({
+  origin: true,                                      // echo the request Origin
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 initializeDatabase();
 if (process.env.NODE_ENV !== 'test') migrate();
+
+// ── Health check — unauthenticated, used by clients to test connectivity ──────
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // ── Public routes (no auth required) ─────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));

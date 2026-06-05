@@ -20,9 +20,13 @@ async function request(path, options = {}) {
     // Network / unreachable error (fetch itself threw — not an HTTP response).
     // Route to the server-setup screen so the user can fix the address.
     // Distinct from 401 (valid connection, bad credentials).
-    // Hash routing: all paths live in window.location.hash, not .pathname.
+    //
+    // IMPORTANT: use window.location.hash (not .href) so the redirect is
+    // hash-only.  Setting .href to '/#/...' under file:// resolves the leading
+    // '/' against the filesystem root (file:///C:/#/...) — ERR_FILE_NOT_FOUND.
+    // Setting .hash changes only the fragment, keeping the file:// path intact.
     if (!window.location.hash.includes('/server-setup')) {
-      window.location.href = '/#/server-setup?error=unreachable'
+      window.location.hash = '/server-setup?error=unreachable'
     }
     throw networkErr
   }
@@ -30,7 +34,7 @@ async function request(path, options = {}) {
   if (res.status === 401) {
     localStorage.removeItem('treetop_auth_token')
     if (!window.location.hash.includes('/login')) {
-      window.location.href = '/#/login'
+      window.location.hash = '/login'
     }
     throw new Error('Unauthorized')
   }

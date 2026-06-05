@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import Sidebar from './Sidebar'
 import { useAuth } from '../context/AuthContext'
@@ -6,10 +6,14 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
   ArrowRightStartOnRectangleIcon,
+  Bars3Icon,
 } from '@heroicons/react/24/outline'
 import { searchApi } from '../api/search'
 
-const TYPE_LABELS = { engagement: 'Engagement', note: 'Note', invoice: 'Invoice', staff: 'Staff' }
+const SIDEBAR_KEY  = 'treetop_sidebar_collapsed'
+const TYPE_LABELS  = { engagement: 'Engagement', note: 'Note', invoice: 'Invoice', staff: 'Staff' }
+
+// ── Search bar ────────────────────────────────────────────────────────────────
 
 function SearchBar() {
   const [query, setQuery]     = useState('')
@@ -41,9 +45,8 @@ function SearchBar() {
     return acc
   }, {})
 
-  const navigate_ = (r) => {
-    setQuery('')
-    setOpen(false)
+  const goto = (r) => {
+    setQuery(''); setOpen(false)
     if (r.type === 'engagement') navigate(`/engagements/${r.id}`)
     else if (r.type === 'invoice') navigate(`/invoices/${r.id}`)
     else if (r.type === 'staff') navigate(`/staff/${encodeURIComponent(r.title)}`)
@@ -78,7 +81,7 @@ function SearchBar() {
               {rows.map(r => (
                 <button
                   key={`${type}-${r.id}`}
-                  onClick={() => navigate_(r)}
+                  onClick={() => goto(r)}
                   className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors"
                 >
                   <p className="text-sm font-medium text-gray-900 truncate">{r.title}</p>
@@ -93,12 +96,32 @@ function SearchBar() {
   )
 }
 
+// ── Layout ────────────────────────────────────────────────────────────────────
 
 export default function Layout() {
   const { user, logout } = useAuth()
-  const navigate = useNavigate()
+  const navigate         = useNavigate()
+  const { pathname }     = useLocation()
 
-  // Keyboard shortcuts: N = new engagement, T = time tracking
+  // ── Sidebar collapsed state ───────────────────────────────────────────────
+  // Default: collapsed on /dashboard (launcher is the focus), expanded elsewhere.
+  // User's manual toggle is persisted to localStorage and respected on every
+  // subsequent visit regardless of route.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const stored = localStorage.getItem(SIDEBAR_KEY)
+    if (stored !== null) return stored === 'true'
+    return pathname === '/dashboard'
+  })
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem(SIDEBAR_KEY, String(next))
+      return next
+    })
+  }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const handler = e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return
@@ -111,33 +134,47 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Topbar */}
-        <header className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-          <SearchBar />
 
-          <div className="flex items-center gap-3">
-            {/* User info + logout */}
-            {user && (
-              <div className="flex items-center gap-2">
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-800 leading-tight">{user.full_name}</p>
-                  <p className="text-xs text-gray-400 capitalize leading-tight">{user.role}</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 select-none">
-                  {user.full_name?.charAt(0).toUpperCase()}
-                </div>
-                <button
-                  onClick={logout}
-                  title="Sign out"
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+      <Sidebar collapsed={sidebarCollapsed} />
+
+      {/* ── Main column ─────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
+        {/* Topbar */}
+        <header className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+
+          {/* Left: hamburger toggle + search */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+            >
+              <Bars3Icon className="w-5 h-5" />
+            </button>
+            <SearchBar />
           </div>
+
+          {/* Right: user info + logout */}
+          {user && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="text-right">
+                <p className="text-sm font-semibold text-gray-800 leading-tight">{user.full_name}</p>
+                <p className="text-xs text-gray-400 capitalize leading-tight">{user.role}</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 select-none">
+                {user.full_name?.charAt(0).toUpperCase()}
+              </div>
+              <button
+                onClick={logout}
+                title="Sign out"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </header>
 
         <main className="flex-1 overflow-y-auto">

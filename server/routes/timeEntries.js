@@ -25,12 +25,17 @@ router.get('/', (req, res) => {
 
   if (engagement_id) { query += ' AND t.engagement_id = ?';   params.push(engagement_id); }
   if (project_id)    { query += ' AND t.project_id = ?';      params.push(project_id); }
-  // Staff always see only their own entries (admin/manager can filter any)
-  if (req.user.role !== 'admin' && !staff_member) {
+  // Non-admin (staff AND manager) always see only their own entries — the
+  // staff_member query param is intentionally ignored for non-admins so it
+  // cannot be used to read another user's time history.
+  if (req.user.role !== 'admin') {
     query += ' AND t.staff_member = ?';
     params.push(req.user.full_name);
+  } else if (staff_member) {
+    // Admin only: optional cross-user filter via query param
+    query += ' AND t.staff_member = ?';
+    params.push(staff_member);
   }
-  if (staff_member)  { query += ' AND t.staff_member = ?';    params.push(staff_member); }
   if (date_from)     { query += ' AND t.date >= ?';           params.push(date_from); }
   if (date_to)       { query += ' AND t.date <= ?';           params.push(date_to); }
   if (pay_period_id) { query += ' AND t.pay_period_id = ?';   params.push(pay_period_id); }
@@ -57,8 +62,7 @@ router.post('/', (req, res) => {
 
   const pay_period_id = findPeriodIdForDate(date);
 
-  // Bug 7: resolve effective rate — use submitted rate if provided, else fall back to
-  // the staff member's most-recent staff_rate, then to the user's default_hourly_rate
+  // resolve effective rate: submitted rate → staff rate → user default
   let effectiveRate = (billing_rate != null && billing_rate !== '') ? Number(billing_rate) : null
   if (!effectiveRate) {
     const sr = db.prepare(
@@ -92,16 +96,29 @@ router.post('/', (req, res) => {
 
 // ── PUT /api/time-entries/:id ─────────────────────────────────────────────────
 router.put('/:id', (req, res) => {
+  const entry = db.prepare('SELECT user_id FROM time_entries WHERE id = ?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+
+  const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+  if (!isAdminOrManager && Number(entry.user_id) !== Number(req.user.id))
+    return res.status(403).json({ error: 'You can only edit your own time entries.' });
+
   const {
     engagement_id, staff_member, date, hours,
     billing_rate, notes, billable, service_code,
     internal_memo, entry_status,
   } = req.body;
 
+  // Non-admin/manager cannot escalate entry_status to 'released' via PUT.
+  // Released status must go through the dedicated PATCH /:id/status route.
+  if (!isAdminOrManager && entry_status === 'released')
+    return res.status(403).json({ error: 'Only admin or manager can set entry status to released.' });
+
   // Re-assign pay period if the date changed
   const pay_period_id = date ? findPeriodIdForDate(date) : null;
 
-  const result = db.prepare(`
+  db.prepare(`
     UPDATE time_entries
     SET engagement_id=?, staff_member=?, date=?, hours=?,
         billing_rate=?, notes=?, billable=?, service_code=?,
@@ -119,14 +136,19 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.json(db.prepare('SELECT * FROM time_entries WHERE id = ?').get(req.params.id));
 });
 
 // ── DELETE /api/time-entries/:id ──────────────────────────────────────────────
 router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM time_entries WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  const entry = db.prepare('SELECT user_id FROM time_entries WHERE id = ?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+
+  const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+  if (!isAdminOrManager && Number(entry.user_id) !== Number(req.user.id))
+    return res.status(403).json({ error: 'You can only delete your own time entries.' });
+
+  db.prepare('DELETE FROM time_entries WHERE id = ?').run(req.params.id);
   res.status(204).send();
 });
 
@@ -135,6 +157,18 @@ router.delete('/:id', (req, res) => {
 router.patch('/bulk', (req, res) => {
   const { ids, billable } = req.body;
   if (!ids?.length) return res.status(400).json({ error: 'ids required' });
+
+  const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+  if (!isAdminOrManager) {
+    // Staff: verify every requested entry belongs to them before applying any change.
+    const placeholders = ids.map(() => '?').join(',');
+    const entries = db.prepare(
+      `SELECT user_id FROM time_entries WHERE id IN (${placeholders})`
+    ).all(...ids);
+    if (entries.some(e => Number(e.user_id) !== Number(req.user.id)))
+      return res.status(403).json({ error: 'You can only modify your own time entries.' });
+  }
+
   const stmt = db.prepare('UPDATE time_entries SET billable=? WHERE id=?');
   ids.forEach(id => stmt.run(billable ? 1 : 0, id));
   res.json({ updated: ids.length });
@@ -142,14 +176,28 @@ router.patch('/bulk', (req, res) => {
 
 // ── PATCH /api/time-entries/:id/status ───────────────────────────────────────
 // Advance entry_status: draft → submitted → released
+// Released status is admin/manager only — staff cannot approve their own time.
 router.patch('/:id/status', (req, res) => {
   const { status } = req.body;
   const valid = ['draft', 'submitted', 'released'];
   if (!valid.includes(status))
     return res.status(400).json({ error: `status must be one of: ${valid.join(', ')}` });
-  const r = db.prepare('UPDATE time_entries SET entry_status=? WHERE id=?')
-    .run(status, req.params.id);
-  if (r.changes === 0) return res.status(404).json({ error: 'Not found' });
+
+  const entry = db.prepare('SELECT user_id FROM time_entries WHERE id = ?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+
+  const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+  // Role gate: only admin/manager may set status to 'released'
+  if (status === 'released' && !isAdminOrManager)
+    return res.status(403).json({ error: 'Only admin or manager can release time entries.' });
+
+  // Ownership gate: non-admin/manager may only touch their own entries.
+  // Number() coercion guards against BigInt vs number mismatches from the DB/JWT boundary.
+  if (!isAdminOrManager && Number(entry.user_id) !== Number(req.user.id))
+    return res.status(403).json({ error: 'You can only update your own time entries.' });
+
+  db.prepare('UPDATE time_entries SET entry_status=? WHERE id=?').run(status, req.params.id);
   res.json(db.prepare('SELECT * FROM time_entries WHERE id = ?').get(req.params.id));
 });
 

@@ -1,12 +1,11 @@
 {
-  "name": "mgrcpas-server",
+  "name": "treetop-management-server",
   "version": "1.0.0",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon index.js",
     "start": "node index.js",
     "seed": "node db/seed.js",
     "seed:empty": "node db/seed-empty.js",
-    "migrate:projects": "node db/migrate-to-projects.js",
     "test": "cross-env NODE_ENV=test jest --runInBand"
   },
   "dependencies": {

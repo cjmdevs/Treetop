@@ -2,6 +2,12 @@ const router = require('express').Router()
 const bcrypt = require('bcryptjs')
 const db     = require('../db/database')
 
+function requireAdmin(req, res, next) {
+  if (req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Admin access required.' })
+  next()
+}
+
 // GET /api/users
 router.get('/', (req, res) => {
   const users = db.prepare(
@@ -12,8 +18,8 @@ router.get('/', (req, res) => {
   res.json(users)
 })
 
-// POST /api/users
-router.post('/', (req, res) => {
+// POST /api/users  — admin only
+router.post('/', requireAdmin, (req, res) => {
   const { username, password, full_name, email, role, default_hourly_rate, rate_effective_date } = req.body || {}
   if (!username || !password || !full_name || !role)
     return res.status(400).json({ error: 'username, password, full_name, and role are required' })
@@ -31,8 +37,8 @@ router.post('/', (req, res) => {
   }
 })
 
-// PUT /api/users/:id
-router.put('/:id', (req, res) => {
+// PUT /api/users/:id  — admin only
+router.put('/:id', requireAdmin, (req, res) => {
   const { full_name, email, role, default_hourly_rate, rate_effective_date, password } = req.body || {}
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id)
   if (!user) return res.status(404).json({ error: 'User not found' })
@@ -47,8 +53,8 @@ router.put('/:id', (req, res) => {
   res.json({ ok: true })
 })
 
-// PATCH /api/users/:id/toggle  — activate / deactivate
-router.patch('/:id/toggle', (req, res) => {
+// PATCH /api/users/:id/toggle  — activate / deactivate — admin only
+router.patch('/:id/toggle', requireAdmin, (req, res) => {
   const user = db.prepare('SELECT id, active FROM users WHERE id = ?').get(req.params.id)
   if (!user) return res.status(404).json({ error: 'User not found' })
   db.prepare('UPDATE users SET active = ? WHERE id = ?').run(user.active ? 0 : 1, req.params.id)

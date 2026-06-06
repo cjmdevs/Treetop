@@ -165,23 +165,109 @@ This setting is saved and does not need to be re-entered unless the server moves
 
 ---
 
-## Windows Firewall
+## Firewall / Connectivity Troubleshooting
 
-The first time a client machine on your network connects, Windows may show a
-security prompt asking whether to allow Node.js through the firewall.
-**Click "Allow access" and select "Private networks."**
+### Quick diagnostic
 
-If clients can't connect but the server works fine on the server machine itself
-(using `http://localhost:3001`), the firewall is the most likely cause.
+> **If Treetop works on the server machine itself using `http://localhost:3001`
+> but other machines on the network cannot connect using the server's LAN IP
+> (e.g. `http://192.168.1.50:3001`), the cause is almost always Windows Firewall
+> on the server machine blocking inbound connections on port 3001.**
+>
+> This is expected behavior — `localhost` (loopback) bypasses the firewall entirely,
+> which is why the server appears to work locally but is unreachable from other machines.
+> It is not an app bug.
 
-To manually add a firewall rule:
-1. Open **Windows Defender Firewall with Advanced Security**
-   (search for it in the Start menu)
-2. Click **Inbound Rules** → **New Rule...**
-3. Select **Port** → **TCP** → enter port **3001** → Next
-4. Select **Allow the connection** → Next
-5. Check **Private** (uncheck Domain and Public unless needed) → Next
-6. Name it `Treetop Management Server` → Finish
+### Step 1 — Confirm the server is actually listening
+
+1. On the server machine, open a Command Prompt and run `ipconfig`
+2. Note the **IPv4 Address** under your active adapter (e.g. `192.168.1.50`)
+3. Check the server startup banner — it prints a **Network:** address at startup.
+   That address should match the IP you found above.
+
+The server binds to `0.0.0.0:3001`, meaning it accepts connections from any interface.
+If the Network address is missing or shows `localhost`, the server process may not
+have started correctly — check the console output or service logs.
+
+### Step 2 — Test reachability from a client machine
+
+From a machine other than the server, open a browser and go to:
+
+```
+http://<server-ip>:3001/api/health
+```
+
+For example: `http://192.168.1.50:3001/api/health`
+
+- **Returns `{"ok":true}`** → the server is reachable. The firewall is not the issue.
+  Double-check the address in the Treetop app settings.
+- **Times out or "can't connect"** → the firewall is blocking the port. Continue below.
+
+> Note: `ping` tests whether the machine is reachable, not whether the port is open.
+> Use the `/api/health` check above for a definitive port-level test.
+
+---
+
+### Fix — Option A: Windows Defender Firewall GUI
+
+Run these steps **on the SERVER machine**:
+
+1. Open the Start menu and search for **"Windows Defender Firewall with Advanced Security"**
+2. In the left panel, click **Inbound Rules**
+3. In the right panel, click **New Rule…**
+4. Rule type: select **Port** → click Next
+5. Protocol: **TCP**; Specific local ports: **`3001`** → click Next
+6. Select **Allow the connection** → click Next
+7. Profile: check **Private** (and **Domain** if the firm is on a Windows domain network).
+   Leave **Public** unchecked for security → click Next
+8. Name the rule **`Treetop Server 3001`** → click Finish
+
+Client machines should now be able to connect using `http://<server-ip>:3001`.
+
+---
+
+### Fix — Option B: Command line (elevated prompt)
+
+Open **PowerShell or Command Prompt as Administrator** on the SERVER machine and run:
+
+```
+netsh advfirewall firewall add rule name="Treetop Server 3001" dir=in action=allow protocol=TCP localport=3001
+```
+
+To remove the rule later:
+
+```
+netsh advfirewall firewall delete rule name="Treetop Server 3001"
+```
+
+---
+
+### The one-time Windows prompt
+
+The very first time a client connects, Windows may pop a one-time dialog asking
+whether to allow Node.js through the firewall. If it appears:
+
+- Check **Private networks** (and Domain if applicable)
+- Click **Allow access**
+
+If that prompt was dismissed without allowing, or appeared and was blocked, the
+connection will fail until a rule is added manually via Option A or B above.
+
+---
+
+### Other causes of the same symptom
+
+If fixing the Windows Firewall doesn't help, check these:
+
+- **Wrong address in app settings** — on a client machine the server address must be
+  `http://<server-ip>:3001` (the LAN IP), not `http://localhost:3001`.
+  Open the Treetop app → Settings → Server Connection to verify.
+- **Different network / subnet** — both machines must be on the same local network.
+  A machine connected via mobile hotspot or VPN will not reach a LAN server.
+- **Third-party security software** — antivirus suites (Norton, Bitdefender, ESET, etc.)
+  often include their own firewall independent of Windows Firewall. If adding a Windows
+  Firewall rule doesn't help, check your security software for a separate firewall
+  or network-blocking feature and add an exception for port 3001 there as well.
 
 ---
 
@@ -189,14 +275,14 @@ To manually add a firewall rule:
 
 Your entire database is a single file. Back it up regularly.
 
-**File to back up:** `db\treetop.db` inside your server folder
+**File to back up:** `data\treetop.db` inside your server folder
 
 **How to back up:**
 1. Stop the server (close the console window, or stop the Windows Service)
 2. Copy these files to your backup location:
-   - `db\treetop.db`
-   - `db\treetop.db-wal` (if it exists)
-   - `db\treetop.db-shm` (if it exists)
+   - `data\treetop.db`
+   - `data\treetop.db-wal` (if it exists)
+   - `data\treetop.db-shm` (if it exists)
 3. Restart the server
 
 > Stopping the server before copying ensures the WAL (write-ahead log) files
@@ -214,9 +300,9 @@ backup folder, then restarts the service.
 When a new version is available:
 
 1. Stop the server (close the console window, or stop the Windows Service)
-2. Back up `db\treetop.db` (see Backups above)
+2. Back up `data\treetop.db` (see Backups above)
 3. Replace the server files with the new version
-   — **keep** your existing `db\` folder and `.env` file
+   — **keep** your existing `data\` folder and `.env` file
 4. Run `setup.bat` — it applies any new database schema changes without touching your data
 5. Restart the server
 
@@ -245,7 +331,9 @@ Another copy of the server is running. Stop it first (close the other console
 window, or stop the service via `services.msc`). Or change `PORT=` in `.env`.
 
 **Clients can't connect but localhost works on the server**
-Windows Firewall is blocking the connection. See the Firewall section above.
+Windows Firewall is almost certainly blocking inbound connections on port 3001.
+See the **Firewall / Connectivity Troubleshooting** section above for a full
+diagnostic and step-by-step fix (GUI and command-line options).
 
 **"npm install failed" during setup**
 Your installation path likely contains a space. Move the server folder to a
@@ -258,7 +346,7 @@ Right-click the file and choose **Run as administrator**.
 If the database already has users, the bootstrap token is permanently gone
 (by design — this is a security feature). To fully reset:
 1. Stop the server
-2. Delete `db\treetop.db` (and `-wal`/`-shm` if present)
+2. Delete `data\treetop.db` (and `-wal`/`-shm` if present)
 3. Run `setup.bat`
 4. Start the server — a new bootstrap token will be generated
 

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken')
+const db  = require('../db/database')
 
 // ── JWT secret resolution ─────────────────────────────────────────────────────
 //
@@ -56,7 +57,17 @@ function requireAuth(req, res, next) {
 
   const token = header.slice(7)
   try {
-    req.user = jwt.verify(token, JWT_SECRET)
+    const decoded = jwt.verify(token, JWT_SECRET)
+    // Always look up the current user from the DB so req.user.role reflects
+    // the live database state, not the role that was baked into the JWT at
+    // login time.  This closes the stale-token window: if an admin demotes a
+    // staff member after they logged in, the demotion takes effect on the
+    // next request without requiring a server restart or token rotation.
+    const user = db.prepare(
+      'SELECT id, username, full_name, email, role, default_hourly_rate, active FROM users WHERE id = ? AND active = 1'
+    ).get(decoded.id)
+    if (!user) return res.status(401).json({ error: 'User not found or deactivated' })
+    req.user = user
     next()
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' })

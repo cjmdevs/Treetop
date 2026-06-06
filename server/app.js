@@ -56,7 +56,6 @@ app.use('/api/contacts',              require('./routes/contacts'));
 app.use('/api/contact-client-types', require('./routes/contactClientTypes'));
 app.use('/api/projects',             require('./routes/projects'));
 app.use('/api/user-preferences',    require('./routes/userPreferences'));
-app.use('/api/ai',                  require('./routes/aiQuery'));
 app.use('/api/project-statuses',   require('./routes/projectStatuses'));
 app.use('/api/invite-keys',        require('./routes/inviteKeys'));
 

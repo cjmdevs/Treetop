@@ -1740,7 +1740,7 @@ export default function Settings() {
             </p>
             <button
               onClick={() => {
-                const url = 'TODO_RELEASES_URL'
+                const url = 'https://github.com/cjmdevs/Treetop/releases'
                 if (window.__treetop__?.isElectron) {
                   window.__treetop__.openExternal(url)
                 } else {

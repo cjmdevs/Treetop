@@ -187,6 +187,9 @@ router.get('/:id', (req, res) => {
 // Generates 26 biweekly periods for the given year starting on the
 // first Monday on or after Jan 1.
 router.post('/generate', (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Admin or manager access required.' });
+
   const year = parseInt(req.body.year, 10);
   if (!year) return res.status(400).json({ error: 'year required' });
 
@@ -219,6 +222,9 @@ router.post('/generate', (req, res) => {
 
 // ── PATCH /api/pay-periods/:id/status ────────────────────────────────────────
 router.patch('/:id/status', (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Admin or manager access required.' });
+
   const { status, released_by } = req.body;
   const valid = ['Open', 'Submitted', 'Released', 'Locked'];
   if (!valid.includes(status))
@@ -240,25 +246,35 @@ router.patch('/:id/status', (req, res) => {
 
 // ── POST /api/pay-periods/:id/submit ─────────────────────────────────────────
 // Bulk-sets entry_status = 'submitted' for draft entries in the period.
-// Optional body: { staff_member } to limit to one person.
+// Staff may only submit their own entries. Admin/manager may pass { staff_member }
+// to limit to one person, or omit to submit all staff in the period.
 router.post('/:id/submit', (req, res) => {
   const { staff_member } = req.body || {};
   const period = db.prepare('SELECT * FROM pay_periods WHERE id = ?').get(req.params.id);
   if (!period) return res.status(404).json({ error: 'Pay period not found' });
 
+  const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+  // Staff are always locked to their own entries regardless of what staff_member was passed.
+  const effectiveStaff = isAdminOrManager ? (staff_member || null) : req.user.full_name;
+
   let sql    = "UPDATE time_entries SET entry_status='submitted' WHERE pay_period_id=? AND entry_status='draft'";
   const args = [period.id];
-  if (staff_member) { sql += ' AND staff_member=?'; args.push(staff_member); }
+  if (effectiveStaff) { sql += ' AND staff_member=?'; args.push(effectiveStaff); }
 
   const r = db.prepare(sql).run(...args);
-  res.json({ updated: r.changes, period_id: period.id, staff_member: staff_member || null });
+  res.json({ updated: r.changes, period_id: period.id, staff_member: effectiveStaff });
 });
 
 // ── POST /api/pay-periods/:id/release ────────────────────────────────────────
 // Bulk-sets entry_status = 'released' for draft+submitted entries in the period.
 // Optional body: { staff_member, released_by }
 // Auto-updates period status to Released when all entries are released.
+// Admin/manager only — staff cannot approve time.
 router.post('/:id/release', (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Admin or manager access required.' });
+
   const { staff_member, released_by } = req.body || {};
   const period = db.prepare('SELECT * FROM pay_periods WHERE id = ?').get(req.params.id);
   if (!period) return res.status(404).json({ error: 'Pay period not found' });

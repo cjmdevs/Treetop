@@ -8,7 +8,7 @@ const ALL_TABS = [
   { id: 'mtd',     label: 'MTD Hours' },
   { id: 'period',  label: 'Period Summary', adminOnly: true },
   { id: 'release', label: 'Time Release' },
-  { id: 'alerts',  label: 'Alerts' },
+  { id: 'alerts',  label: 'Alerts',          adminOnly: true },
 ]
 
 function fmtH(n) { return n != null ? `${Number(n).toFixed(2)}h` : '—' }

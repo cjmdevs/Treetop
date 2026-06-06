@@ -1,8 +1,9 @@
 node_modules/
 server/data/
 *.db
+*.db-wal
+*.db-shm
 .env
 dist/
-server/data/*.db
 server/BOOTSTRAP_TOKEN.txt
 release/

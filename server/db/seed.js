@@ -66,13 +66,16 @@ const insertRate = db.prepare(
   'INSERT INTO staff_rates (staff_member, hourly_rate, effective_date) VALUES (?, ?, ?)'
 );
 [
-  ['Marcus Maurer', 350, '2026-01-01'],
-  ['Sofia Graf',    275, '2026-01-01'],
-  ['Diego Rivera',  175, '2026-01-01'],
-  ['Carson',          0, '2026-01-01'],
+  ['Admin',       350, '2026-01-01'],
+  ['Manager',     275, '2026-01-01'],
+  ['Staff',       175, '2026-01-01'],
+  ['Admin Two',     0, '2026-01-01'],
 ].forEach(args => insertRate.run(...args));
 
 // ── Users (inserted early so time entries can reference user_id) ──────────────
+// DEV SEED ONLY — these generic accounts do not exist in real deployments.
+// Production starts with an empty database and uses the bootstrap flow to
+// create real named accounts (see server/DEPLOYMENT.md).
 const insertUser = db.prepare(`
   INSERT INTO users (username, password, full_name, email, role, default_hourly_rate, rate_effective_date)
   VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -80,10 +83,10 @@ const insertUser = db.prepare(`
 
 const userIds = {};
 [
-  ['mmaurer', 'admin123',   'Marcus Maurer', 'mmaurer@treetop.com',       'admin',   350, '2026-01-01'],
-  ['sgraf',   'manager123', 'Sofia Graf',    'sgraf@treetop.com',         'manager', 275, '2026-01-01'],
-  ['drivera', 'staff123',   'Diego Rivera',  'drivera@treetop.com',       'staff',   175, '2026-01-01'],
-  ['carson',  'admin123',   'Carson',        'carsonjjmaurer@gmail.com',  'admin',     0, '2026-01-01'],
+  ['admin',   'admin123',   'Admin',       'admin@treetop.local',   'admin',   350, '2026-01-01'],
+  ['manager', 'manager123', 'Manager',     'manager@treetop.local', 'manager', 275, '2026-01-01'],
+  ['staff',   'staff123',   'Staff',       'staff@treetop.local',   'staff',   175, '2026-01-01'],
+  ['admin2',  'admin123',   'Admin Two',   'admin2@treetop.local',  'admin',     0, '2026-01-01'],
 ].forEach(([username, password, full_name, email, role, rate, date]) => {
   const hashed = bcrypt.hashSync(password, 10);
   const r = insertUser.run(username, hashed, full_name, email, role, rate, date);
@@ -99,11 +102,11 @@ const insertEngagement = db.prepare(`
 `);
 
 const engagements = [
-  ['Apex Industries LLC',    'Tax Return',  2024, '2026-04-15', 'In Progress', 'Marcus Maurer', 'High',   'Corporate return, complex depreciation schedules', 20, 5000,  'Annually'],
-  ['Chen Family Trust',      'Tax Return',  2024, '2026-04-15', 'Not Started', 'Sofia Graf',    'Medium', 'Multiple K-1s expected',                           12, 2400,  'Annually'],
-  ['Riverside Dental Group', 'Bookkeeping', null, '2026-05-31', 'In Progress', 'Diego Rivera',  'Medium', 'Monthly bookkeeping, reconcile Q1',                 8,  1200,  'Monthly'],
-  ['Pacific Ventures Inc',   'Audit',       2024, '2026-06-30', 'In Review',   'Marcus Maurer', 'High',   'Year-end audit for bank covenant compliance',       40, 12000, 'Annually'],
-  ['Santos & Associates',    'Advisory',    null, '2026-05-15', 'Not Started', 'Sofia Graf',    'Low',    'Business valuation consultation',                   6,  1800,  'None'],
+  ['Apex Industries LLC',    'Tax Return',  2024, '2026-04-15', 'In Progress', 'Admin',   'High',   'Corporate return, complex depreciation schedules', 20, 5000,  'Annually'],
+  ['Chen Family Trust',      'Tax Return',  2024, '2026-04-15', 'Not Started', 'Manager', 'Medium', 'Multiple K-1s expected',                           12, 2400,  'Annually'],
+  ['Riverside Dental Group', 'Bookkeeping', null, '2026-05-31', 'In Progress', 'Staff',   'Medium', 'Monthly bookkeeping, reconcile Q1',                 8,  1200,  'Monthly'],
+  ['Pacific Ventures Inc',   'Audit',       2024, '2026-06-30', 'In Review',   'Admin',   'High',   'Year-end audit for bank covenant compliance',       40, 12000, 'Annually'],
+  ['Santos & Associates',    'Advisory',    null, '2026-05-15', 'Not Started', 'Manager', 'Low',    'Business valuation consultation',                   6,  1800,  'None'],
 ];
 
 const ids = engagements.map(e => insertEngagement.run(...e).lastInsertRowid);
@@ -124,7 +127,7 @@ const apexPrior = insertProject.run(
   ids[0], 'Apex Industries LLC', '1120', 'LLC', '2024',
   'Delivered', '2025-04-15', '2025-10-15', '2025-01-15', '2025-10-10', '2025-10-12',
   1, 'APEX001', '001',
-  'Marcus Maurer', 'Sofia Graf', 'Diego Rivera', 'Marcus Maurer', 'Carson',
+  'Admin', 'Manager', 'Staff', 'Admin', 'Admin Two',
   20, 5000, 'High', null
 ).lastInsertRowid;
 
@@ -133,7 +136,7 @@ const apexCurrent = insertProject.run(
   ids[0], 'Apex Industries LLC', '1120', 'LLC', '2025',
   'Extension Filed', '2026-04-15', '2026-10-15', '2026-02-15', null, null,
   1, 'APEX001', '001',
-  'Marcus Maurer', 'Sofia Graf', 'Diego Rivera', 'Marcus Maurer', 'Carson',
+  'Admin', 'Manager', 'Staff', 'Admin', 'Admin Two',
   20, 5000, 'High', apexPrior
 ).lastInsertRowid;
 
@@ -142,7 +145,7 @@ const chenCurrent = insertProject.run(
   ids[1], 'Chen Family Trust', '1041', 'Trust', '2025',
   'Not Started', '2026-04-15', '2026-04-15', null, null, null,
   0, 'CHFT001', '001',
-  'Sofia Graf', null, 'Diego Rivera', 'Sofia Graf', null,
+  'Manager', null, 'Staff', 'Manager', null,
   12, 2400, 'Normal', null
 ).lastInsertRowid;
 
@@ -151,7 +154,7 @@ const riversideCurrent = insertProject.run(
   ids[2], 'Riverside Dental Group', 'Bookkeeping', 'LLC', 'May 2026',
   'In Progress', '2026-05-31', '2026-05-31', '2026-05-01', null, null,
   0, 'RIVD001', '001',
-  'Marcus Maurer', 'Sofia Graf', 'Diego Rivera', null, null,
+  'Admin', 'Manager', 'Staff', null, null,
   8, 1200, 'Normal', null
 ).lastInsertRowid;
 
@@ -160,7 +163,7 @@ const pacificCurrent = insertProject.run(
   ids[3], 'Pacific Ventures Inc', 'Audit', 'C-Corp', '2025',
   'In Review', '2026-06-30', '2026-06-30', '2026-03-01', null, null,
   0, 'PACV001', '001',
-  'Marcus Maurer', null, null, 'Marcus Maurer', null,
+  'Admin', null, null, 'Admin', null,
   40, 12000, 'High', null
 ).lastInsertRowid;
 
@@ -169,7 +172,7 @@ const santosCurrent = insertProject.run(
   ids[4], 'Santos & Associates', 'Advisory', 'LLC', '2026',
   'Not Started', '2026-05-15', '2026-05-15', null, null, null,
   0, 'SANT001', '001',
-  'Sofia Graf', 'Diego Rivera', null, null, null,
+  'Manager', 'Staff', null, null, null,
   6, 1800, 'Low', null
 ).lastInsertRowid;
 
@@ -186,15 +189,15 @@ const insertTimeEntry = db.prepare(`
 const te = (engId, projId, name, date, hrs, rate, notes, billable, code) =>
   insertTimeEntry.run(engId, projId, name, userIds[name], date, hrs, rate, notes, billable, code, p10);
 
-te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-12', 3.5, 250, 'Reviewed prior year return',   1, 'TAX-PREP');
-te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-13', 2.0, 250, 'Depreciation schedule prep',   1, 'TAX-PREP');
-te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-14', 4.5, 250, 'Tax return preparation',       1, 'TAX-PREP');
-te(ids[0], apexCurrent,     'Marcus Maurer', '2026-05-15', 8.0, 250, 'Final review and client call', 1, 'TAX-REVIEW');
-te(ids[1], chenCurrent,     'Sofia Graf',    '2026-05-14', 1.5, 200, 'Initial client call',          1, 'ADMIN-COMM');
-te(ids[2], riversideCurrent,'Diego Rivera',  '2026-05-13', 4.0, 150, 'Q1 bank reconciliation',       1, 'BOOKKEEPING');
-te(ids[2], riversideCurrent,'Diego Rivera',  '2026-05-20', 3.0, 150, 'April categorization',         1, 'BOOKKEEPING');
-te(ids[3], pacificCurrent,  'Marcus Maurer', '2026-05-15', 5.0, 300, 'Audit fieldwork day 1',        1, 'AUDIT-FIELD');
-te(ids[3], pacificCurrent,  'Marcus Maurer', '2026-05-16', 6.0, 300, 'Audit fieldwork day 2',        1, 'AUDIT-FIELD');
+te(ids[0], apexCurrent,     'Admin',   '2026-05-12', 3.5, 250, 'Reviewed prior year return',   1, 'TAX-PREP');
+te(ids[0], apexCurrent,     'Admin',   '2026-05-13', 2.0, 250, 'Depreciation schedule prep',   1, 'TAX-PREP');
+te(ids[0], apexCurrent,     'Admin',   '2026-05-14', 4.5, 250, 'Tax return preparation',       1, 'TAX-PREP');
+te(ids[0], apexCurrent,     'Admin',   '2026-05-15', 8.0, 250, 'Final review and client call', 1, 'TAX-REVIEW');
+te(ids[1], chenCurrent,     'Manager', '2026-05-14', 1.5, 200, 'Initial client call',          1, 'ADMIN-COMM');
+te(ids[2], riversideCurrent,'Staff',   '2026-05-13', 4.0, 150, 'Q1 bank reconciliation',       1, 'BOOKKEEPING');
+te(ids[2], riversideCurrent,'Staff',   '2026-05-20', 3.0, 150, 'April categorization',         1, 'BOOKKEEPING');
+te(ids[3], pacificCurrent,  'Admin',   '2026-05-15', 5.0, 300, 'Audit fieldwork day 1',        1, 'AUDIT-FIELD');
+te(ids[3], pacificCurrent,  'Admin',   '2026-05-16', 6.0, 300, 'Audit fieldwork day 2',        1, 'AUDIT-FIELD');
 
 // ── Billing Records ───────────────────────────────────────────────────────────
 const insertBilling = db.prepare(`
@@ -280,15 +283,15 @@ const insertSubtask = db.prepare(`
 `);
 
 [
-  [ids[0], apexCurrent, 'Gather client documents',       'Marcus Maurer', 'Complete',    0],
-  [ids[0], apexCurrent, 'Prior year comparison review',  'Marcus Maurer', 'Complete',    1],
-  [ids[0], apexCurrent, 'Prepare tax return',            'Marcus Maurer', 'In Progress', 2],
-  [ids[0], apexCurrent, 'Partner review',                'Marcus Maurer', 'Not Started', 3],
-  [ids[0], apexCurrent, 'Client review meeting',         'Marcus Maurer', 'Not Started', 4],
-  [ids[0], apexCurrent, 'E-file and confirm acceptance', 'Marcus Maurer', 'Not Started', 5],
-  [ids[1], chenCurrent, 'Gather client documents',       'Sofia Graf',    'Not Started', 0],
-  [ids[1], chenCurrent, 'Prior year comparison review',  'Sofia Graf',    'Not Started', 1],
-  [ids[1], chenCurrent, 'Prepare tax return',            'Sofia Graf',    'Not Started', 2],
+  [ids[0], apexCurrent, 'Gather client documents',       'Admin',   'Complete',    0],
+  [ids[0], apexCurrent, 'Prior year comparison review',  'Admin',   'Complete',    1],
+  [ids[0], apexCurrent, 'Prepare tax return',            'Admin',   'In Progress', 2],
+  [ids[0], apexCurrent, 'Partner review',                'Admin',   'Not Started', 3],
+  [ids[0], apexCurrent, 'Client review meeting',         'Admin',   'Not Started', 4],
+  [ids[0], apexCurrent, 'E-file and confirm acceptance', 'Admin',   'Not Started', 5],
+  [ids[1], chenCurrent, 'Gather client documents',       'Manager', 'Not Started', 0],
+  [ids[1], chenCurrent, 'Prior year comparison review',  'Manager', 'Not Started', 1],
+  [ids[1], chenCurrent, 'Prepare tax return',            'Manager', 'Not Started', 2],
 ].forEach(([engId, projId, title, staff, status, order]) =>
   insertSubtask.run(engId, projId, title, staff, status, order));
 
@@ -298,9 +301,9 @@ const insertNote = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?, ?)
 `);
 
-insertNote.run('engagement', ids[0], 'Client confirmed they have Section 179 assets this year — expect higher deduction than prior year.', 'Tax',     1, 'Marcus Maurer', 1);
-insertNote.run('engagement', ids[0], 'Spoke with CFO on 5/12 — they will send remaining depreciation schedules by EOD Monday.',            'General', 0, 'Marcus Maurer', 0);
-insertNote.run('engagement', ids[3], 'Bank covenant requires audit opinion by June 30 — hard deadline, no extensions possible.',            'General', 1, 'Marcus Maurer', 1);
+insertNote.run('engagement', ids[0], 'Client confirmed they have Section 179 assets this year — expect higher deduction than prior year.', 'Tax',     1, 'Admin', 1);
+insertNote.run('engagement', ids[0], 'Spoke with CFO on 5/12 — they will send remaining depreciation schedules by EOD Monday.',            'General', 0, 'Admin', 0);
+insertNote.run('engagement', ids[3], 'Bank covenant requires audit opinion by June 30 — hard deadline, no extensions possible.',            'General', 1, 'Admin', 1);
 
 // ── Payment ───────────────────────────────────────────────────────────────────
 db.prepare(`
@@ -319,7 +322,7 @@ insertRule.run(
   'status_changed',
   JSON.stringify({ to_status: 'In Review' }),
   'reassign_staff',
-  JSON.stringify({ staff_member: 'Marcus Maurer' })
+  JSON.stringify({ staff_member: 'Admin' })
 );
 insertRule.run(
   'Complete engagement when all tasks done',
@@ -404,7 +407,7 @@ cIds['apex'] = insertContact.run(
   '4200 Commerce Blvd', 'Sacramento', 'CA', '95814', 'USA',
   '(916) 555-0121', 'Office', '(916) 555-0122', 'Fax',
   'contact@apexindustries.com', null, 'www.apexindustries.com',
-  'Referral', '332900', 'Manufacturing', 'Long-term client, complex depreciation schedules each year.', userIds['Marcus Maurer']
+  'Referral', '332900', 'Manufacturing', 'Long-term client, complex depreciation schedules each year.', userIds['Admin']
 ).lastInsertRowid;
 
 // 2. Chen Family Trust
@@ -415,7 +418,7 @@ cIds['chen_trust'] = insertContact.run(
   '815 Willow Creek Rd', 'Palo Alto', 'CA', '94301', 'USA',
   '(650) 555-0188', 'Office', null, 'Mobile',
   'trust@chenfamily.com', null, null,
-  null, null, 'Family Trust', 'Multiple K-1s expected annually.', userIds['Sofia Graf']
+  null, null, 'Family Trust', 'Multiple K-1s expected annually.', userIds['Manager']
 ).lastInsertRowid;
 
 // 3. Linda Chen (individual — trustee of Chen Family Trust)
@@ -426,7 +429,7 @@ cIds['linda_chen'] = insertContact.run(
   '815 Willow Creek Rd', 'Palo Alto', 'CA', '94301', 'USA',
   '(650) 555-0189', 'Mobile', null, 'Office',
   'linda.chen@gmail.com', 'linda@chenfamily.com', null,
-  null, null, null, 'Trustee and primary contact for Chen Family Trust.', userIds['Sofia Graf']
+  null, null, null, 'Trustee and primary contact for Chen Family Trust.', userIds['Manager']
 ).lastInsertRowid;
 
 // 4. Riverside Dental Group
@@ -437,7 +440,7 @@ cIds['riverside'] = insertContact.run(
   '2201 Riverside Ave', 'Fresno', 'CA', '93721', 'USA',
   '(559) 555-0144', 'Office', '(559) 555-0145', 'Fax',
   'billing@riversidedental.com', null, 'www.riversidedental.com',
-  'Yellow Pages', '621210', 'Dental Practice', 'Monthly bookkeeping, quarterly payroll review.', userIds['Marcus Maurer']
+  'Yellow Pages', '621210', 'Dental Practice', 'Monthly bookkeeping, quarterly payroll review.', userIds['Admin']
 ).lastInsertRowid;
 
 // 5. Pacific Ventures Inc
@@ -448,7 +451,7 @@ cIds['pacific'] = insertContact.run(
   '500 Market St Ste 1800', 'San Francisco', 'CA', '94105', 'USA',
   '(415) 555-0177', 'Office', null, 'Mobile',
   'cfo@pacificventures.com', 'admin@pacificventures.com', 'www.pacificventures.com',
-  'Bank Referral', '523900', 'Investment Holding', 'Annual audit for bank covenant compliance. Hard June 30 deadline.', userIds['Marcus Maurer']
+  'Bank Referral', '523900', 'Investment Holding', 'Annual audit for bank covenant compliance. Hard June 30 deadline.', userIds['Admin']
 ).lastInsertRowid;
 
 // 6. Santos & Associates
@@ -459,7 +462,7 @@ cIds['santos'] = insertContact.run(
   '780 Grand Ave', 'Oakland', 'CA', '94610', 'USA',
   '(510) 555-0133', 'Office', null, 'Mobile',
   'info@santosassociates.com', null, null,
-  'Referral', '541611', 'Management Consulting', 'Business valuation consultation engagement.', userIds['Sofia Graf']
+  'Referral', '541611', 'Management Consulting', 'Business valuation consultation engagement.', userIds['Manager']
 ).lastInsertRowid;
 
 // 7. Diego Santos (individual — owner of Santos & Associates)
@@ -470,7 +473,7 @@ cIds['diego_santos'] = insertContact.run(
   '780 Grand Ave', 'Oakland', 'CA', '94610', 'USA',
   '(510) 555-0134', 'Mobile', '(510) 555-0133', 'Office',
   'diego@santosassociates.com', null, null,
-  null, null, null, 'Owner and principal of Santos & Associates.', userIds['Sofia Graf']
+  null, null, null, 'Owner and principal of Santos & Associates.', userIds['Manager']
 ).lastInsertRowid;
 
 // 8. Robert & Sarah Thompson (individual, prospect)
@@ -481,7 +484,7 @@ cIds['thompson'] = insertContact.run(
   '1455 Oak Hill Dr', 'Modesto', 'CA', '95354', 'USA',
   '(209) 555-0156', 'Mobile', '(209) 555-0157', 'Home',
   'rob.thompson@email.com', 'sarah.thompson@email.com', null,
-  'Chamber of Commerce', null, null, 'Prospect — met at Modesto Chamber event. Referred by Pacific Ventures.', userIds['Marcus Maurer']
+  'Chamber of Commerce', null, null, 'Prospect — met at Modesto Chamber event. Referred by Pacific Ventures.', userIds['Admin']
 ).lastInsertRowid;
 
 // 9. Thompson Realty LLC (business, prospect, owned by Robert Thompson)
@@ -492,7 +495,7 @@ cIds['thompson_realty'] = insertContact.run(
   '1455 Oak Hill Dr', 'Modesto', 'CA', '95354', 'USA',
   '(209) 555-0158', 'Office', null, 'Mobile',
   'rob.thompson@email.com', null, null,
-  'Chamber of Commerce', '531210', 'Real Estate Brokerage', null, userIds['Marcus Maurer']
+  'Chamber of Commerce', '531210', 'Real Estate Brokerage', null, userIds['Admin']
 ).lastInsertRowid;
 
 // 10. Elena Vasquez (individual, inactive — formerly active)
@@ -503,7 +506,7 @@ cIds['vasquez'] = insertContact.run(
   '322 Pine St Apt 4', 'Stockton', 'CA', '95202', 'USA',
   '(209) 555-0199', 'Mobile', null, 'Office',
   'evasquez@email.com', null, null,
-  null, null, null, 'Retired client. Returns may not recur.', userIds['Sofia Graf']
+  null, null, null, 'Retired client. Returns may not recur.', userIds['Manager']
 ).lastInsertRowid;
 
 // ── Contact Staff Assignments ─────────────────────────────────────────────────
@@ -512,39 +515,39 @@ const insertCSA = db.prepare(
 );
 
 // Apex Industries
-insertCSA.run(cIds['apex'], 'Primary Partner', userIds['Marcus Maurer']);
-insertCSA.run(cIds['apex'], 'Manager', userIds['Sofia Graf']);
-insertCSA.run(cIds['apex'], 'Tax Preparer', userIds['Marcus Maurer']);
+insertCSA.run(cIds['apex'], 'Primary Partner', userIds['Admin']);
+insertCSA.run(cIds['apex'], 'Manager', userIds['Manager']);
+insertCSA.run(cIds['apex'], 'Tax Preparer', userIds['Admin']);
 
 // Chen Family Trust
-insertCSA.run(cIds['chen_trust'], 'Primary Partner', userIds['Sofia Graf']);
-insertCSA.run(cIds['chen_trust'], 'Tax Preparer', userIds['Diego Rivera']);
+insertCSA.run(cIds['chen_trust'], 'Primary Partner', userIds['Manager']);
+insertCSA.run(cIds['chen_trust'], 'Tax Preparer', userIds['Staff']);
 
 // Linda Chen
-insertCSA.run(cIds['linda_chen'], 'Primary Partner', userIds['Sofia Graf']);
+insertCSA.run(cIds['linda_chen'], 'Primary Partner', userIds['Manager']);
 
 // Riverside Dental
-insertCSA.run(cIds['riverside'], 'Primary Partner', userIds['Marcus Maurer']);
-insertCSA.run(cIds['riverside'], 'Manager', userIds['Sofia Graf']);
-insertCSA.run(cIds['riverside'], 'Tax Preparer', userIds['Diego Rivera']);
+insertCSA.run(cIds['riverside'], 'Primary Partner', userIds['Admin']);
+insertCSA.run(cIds['riverside'], 'Manager', userIds['Manager']);
+insertCSA.run(cIds['riverside'], 'Tax Preparer', userIds['Staff']);
 
 // Pacific Ventures
-insertCSA.run(cIds['pacific'], 'Primary Partner', userIds['Marcus Maurer']);
-insertCSA.run(cIds['pacific'], 'Tax Reviewer', userIds['Marcus Maurer']);
+insertCSA.run(cIds['pacific'], 'Primary Partner', userIds['Admin']);
+insertCSA.run(cIds['pacific'], 'Tax Reviewer', userIds['Admin']);
 
 // Santos & Associates
-insertCSA.run(cIds['santos'], 'Primary Partner', userIds['Sofia Graf']);
-insertCSA.run(cIds['santos'], 'Manager', userIds['Diego Rivera']);
+insertCSA.run(cIds['santos'], 'Primary Partner', userIds['Manager']);
+insertCSA.run(cIds['santos'], 'Manager', userIds['Staff']);
 
 // Diego Santos
-insertCSA.run(cIds['diego_santos'], 'Primary Partner', userIds['Sofia Graf']);
+insertCSA.run(cIds['diego_santos'], 'Primary Partner', userIds['Manager']);
 
 // Thompson
-insertCSA.run(cIds['thompson'], 'Primary Partner', userIds['Marcus Maurer']);
-insertCSA.run(cIds['thompson_realty'], 'Primary Partner', userIds['Marcus Maurer']);
+insertCSA.run(cIds['thompson'], 'Primary Partner', userIds['Admin']);
+insertCSA.run(cIds['thompson_realty'], 'Primary Partner', userIds['Admin']);
 
 // Vasquez
-insertCSA.run(cIds['vasquez'], 'Primary Partner', userIds['Sofia Graf']);
+insertCSA.run(cIds['vasquez'], 'Primary Partner', userIds['Manager']);
 
 // ── Contact Tags ──────────────────────────────────────────────────────────────
 const insertTag = db.prepare('INSERT OR IGNORE INTO contact_tags (contact_id, tag) VALUES (?, ?)');
@@ -583,23 +586,23 @@ const insertActivity = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?)
 `);
 
-insertActivity.run(cIds['apex'], userIds['Marcus Maurer'], 'note',
+insertActivity.run(cIds['apex'], userIds['Admin'], 'note',
   'Annual engagement kickoff call',
   'Spoke with CFO. They confirmed Section 179 assets again this year. Will send depreciation schedules by end of week.',
   '2026-04-02 09:15:00');
-insertActivity.run(cIds['apex'], userIds['Marcus Maurer'], 'meeting',
+insertActivity.run(cIds['apex'], userIds['Admin'], 'meeting',
   'In-person review meeting',
   'Met at client office to review draft return. Client satisfied with estimates.',
   '2026-05-10 14:00:00');
-insertActivity.run(cIds['chen_trust'], userIds['Sofia Graf'], 'call',
+insertActivity.run(cIds['chen_trust'], userIds['Manager'], 'call',
   'Initial call re: K-1 documents',
   'Linda confirmed K-1s from all three partnerships will arrive by March 15.',
   '2026-02-28 10:30:00');
-insertActivity.run(cIds['pacific'], userIds['Marcus Maurer'], 'note',
+insertActivity.run(cIds['pacific'], userIds['Admin'], 'note',
   'Bank covenant deadline confirmed',
   'CFO emailed to confirm June 30 is a hard deadline per their loan agreement.',
   '2026-04-18 11:00:00');
-insertActivity.run(cIds['thompson'], userIds['Marcus Maurer'], 'note',
+insertActivity.run(cIds['thompson'], userIds['Admin'], 'note',
   'First contact — Chamber event',
   'Met Robert and Sarah at Modesto Chamber of Commerce mixer. They are looking to switch CPA firms.',
   '2026-03-15 16:45:00');
@@ -675,3 +678,4 @@ console.log('Database seeded: 5 engagements, 6 projects (Apex: 2024 Delivered + 
 console.log('  9 time entries (P10/2026), 3 billing records, 18 service codes, 3 templates, 9 subtasks, 3 notes,');
 console.log('  1 payment, 3 automation rules, 11 tax deadlines, 26 pay periods (2026), 3 staff rates, 4 users,');
 console.log('  11 client types, 10 contacts with staff assignments, tags, affiliates, and activity.');
+console.log('  DEV SEED ONLY — accounts: admin / manager / staff / admin2 (all passwords: *123)');

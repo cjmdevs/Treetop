@@ -4,7 +4,9 @@ const router  = express.Router();
 
 // ── GET /api/time-summary/mtd ─────────────────────────────────────────────────
 // Month-to-date hours: totals, per-staff, per-category breakdown.
-// Optional ?staff=Name to filter to one person.
+// Admin: optional ?staff=Name to filter to one person.
+// Non-admin: always scoped to the caller — ?staff= param is ignored to prevent
+//            reading another user's MTD data (same rule as C3 GET /time-entries).
 router.get('/mtd', (req, res) => {
   const now   = new Date();
   const year  = now.getFullYear();
@@ -12,11 +14,15 @@ router.get('/mtd', (req, res) => {
   const start = `${year}-${month}-01`;
   const end   = now.toISOString().split('T')[0];
 
-  const { staff } = req.query;
-  const whereClause = staff
+  // Force self-scope for non-admin callers.
+  const effectiveStaff = req.user.role === 'admin'
+    ? (req.query.staff || null)
+    : req.user.full_name;
+
+  const whereClause = effectiveStaff
     ? 'WHERE date >= ? AND date <= ? AND staff_member = ?'
     : 'WHERE date >= ? AND date <= ?';
-  const args = staff ? [start, end, staff] : [start, end];
+  const args = effectiveStaff ? [start, end, effectiveStaff] : [start, end];
 
   const byStaff = db.prepare(`
     SELECT staff_member,
@@ -58,7 +64,10 @@ router.get('/mtd', (req, res) => {
 
 // ── GET /api/time-summary/period/:periodId ────────────────────────────────────
 // Biweekly timesheet grid with billable totals + per-staff entry status.
+// Admin only — exposes all staff hours and billable amounts across the firm.
 router.get('/period/:periodId', (req, res) => {
+  if (req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Admin access required.' });
   const period = db.prepare('SELECT * FROM pay_periods WHERE id = ?').get(req.params.periodId);
   if (!period) return res.status(404).json({ error: 'Pay period not found' });
 
@@ -148,7 +157,10 @@ router.get('/period/:periodId', (req, res) => {
 
 // ── GET /api/time-summary/alerts ──────────────────────────────────────────────
 // Returns: unreleased past periods, staff with low hours, missing staff, over-budget engagements.
+// Admin only — exposes firm-wide data about all staff, not just the caller.
 router.get('/alerts', (req, res) => {
+  if (req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Admin access required.' });
   const today = new Date().toISOString().split('T')[0];
 
   const unreleasedPeriods = db.prepare(`
@@ -203,10 +215,13 @@ router.get('/alerts', (req, res) => {
 
 // ── GET /api/time-summary/daily-hours ─────────────────────────────────────────
 // Per-day total hours for one staff member in a date range.
-// Query params: staff (required), from (YYYY-MM-DD), to (YYYY-MM-DD)
+// Query params: staff (required for admin; ignored for non-admin), from, to
+// Non-admin callers are always scoped to their own name — ?staff= is ignored.
 // Response: { staff, from, to, daily: { "2026-05-11": 3.5, ... } }
 router.get('/daily-hours', (req, res) => {
-  const { staff, from, to } = req.query;
+  const { from, to } = req.query;
+  // Force self-scope for non-admin callers.
+  const staff = req.user.role === 'admin' ? req.query.staff : req.user.full_name;
   if (!staff || !from || !to)
     return res.status(400).json({ error: 'staff, from, and to are required' });
 

@@ -8,7 +8,7 @@ import { contactClientTypesApi } from '../api/contactClientTypes'
 import { projectStatusesApi }    from '../api/projectStatuses'
 import { useAuth }               from '../context/AuthContext'
 import { useStatuses }           from '../context/StatusesContext'
-import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon, WifiIcon, CheckCircleIcon, ExclamationTriangleIcon, ClipboardDocumentIcon, KeyIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon, WifiIcon, CheckCircleIcon, ExclamationTriangleIcon, ClipboardDocumentIcon, KeyIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { getServerUrl, setServerUrl, testConnection, normalizeUrl } from '../config/serverConfig'
 import { inviteKeysApi } from '../api/inviteKeys'
 
@@ -406,6 +406,24 @@ export default function Settings() {
     return acc
   }, {})
 
+  // ── Version / build info (Part 3, Phase 6) ──────────────────────────────────
+  // appVersion: Electron exposes it via preload.cjs (app.getVersion() → package.json).
+  //   In browser builds, falls back to the __APP_VERSION__ Vite define (baked at build time).
+  // buildDate:  __BUILD_TIME__ is a Vite define — replaced with an ISO timestamp at build time.
+  //   Wrapped in try/catch so dev hot-reload (where the define is a literal) never throws.
+  const _rawVersion = window.__treetop__?.appVersion
+  const _appVersion = (_rawVersion && _rawVersion !== 'unknown')
+    ? _rawVersion
+    : (() => { try { return __APP_VERSION__ } catch { return '1.0.0' } })()  // eslint-disable-line no-undef
+
+  const _buildDate = (() => {
+    try {
+      return new Date(__BUILD_TIME__).toLocaleDateString('en-US', {   // eslint-disable-line no-undef
+        year: 'numeric', month: 'long', day: 'numeric',
+      })
+    } catch { return 'development build' }
+  })()
+
   const navSections = [
     { label: 'Projects', items: [
       { key: 'statuses',       label: 'Project Statuses', visible: true },
@@ -424,6 +442,9 @@ export default function Settings() {
       { key: 'accounts',     label: 'User Accounts',    visible: isAdmin },
       { key: 'invite-keys',  label: 'Invite Keys',      visible: isAdmin },
       { key: 'server',       label: 'Server Connection', visible: isAdmin },
+    ]},
+    { label: 'App', items: [
+      { key: 'about', label: 'About & Updates', visible: true },
     ]},
   ]
 
@@ -1681,6 +1702,71 @@ export default function Settings() {
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ── About & Updates ──────────────────────────────────────────────────── */}
+      {tab === 'about' && (
+        <div className="max-w-lg">
+
+          {/* App identity */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center flex-shrink-0 shadow-sm">
+                <span className="text-white font-bold text-xl select-none">T</span>
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Treetop Management</h2>
+                <p className="text-sm text-gray-500">Practice management system</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Version</p>
+                <p className="font-mono text-sm font-semibold text-gray-900">{_appVersion}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Built</p>
+                <p className="text-sm text-gray-700">{_buildDate}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Updates */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Updates</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Download new versions from the releases page. Install by running the updated installer — your data and settings are preserved.
+            </p>
+            <button
+              onClick={() => {
+                const url = 'TODO_RELEASES_URL'
+                if (window.__treetop__?.isElectron) {
+                  window.__treetop__.openExternal(url)
+                } else {
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors"
+            >
+              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+              Check for updates
+            </button>
+            <p className="text-xs text-gray-400 mt-2.5">
+              Opens the downloads page in your browser — nothing is installed automatically.
+            </p>
+          </div>
+
+          {/* SmartScreen note */}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-600">
+            <p className="font-medium text-gray-700 mb-1">Windows SmartScreen warning</p>
+            <p>
+              New installer downloads may show "Windows protected your PC." Click{' '}
+              <span className="font-medium">More info → Run anyway</span> to proceed.
+              This is expected for unsigned installers.
+            </p>
+          </div>
+
         </div>
       )}
 

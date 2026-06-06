@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "electron:dev": "node electron/electron-dev.cjs",
     "electron:start": "cross-env ELECTRON_START_URL=http://localhost:5173 electron electron/main.cjs",
-    "electron:build-test": "npm run build && electron electron/main.cjs"
+    "electron:build-test": "npm run build && electron electron/main.cjs",
+    "dist": "npm run build && cross-env WIN_CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_LINK= CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --publish never",
+    "release": "npm run build && cross-env WIN_CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --publish always"
   },
   "dependencies": {
     "@heroicons/react": "^2.1.1",
@@ -22,8 +24,45 @@
     "autoprefixer": "^10.4.18",
     "cross-env": "^10.1.0",
     "electron": "^42.3.3",
+    "electron-builder": "^25.1.8",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.4"
+  },
+  "build": {
+    "appId": "com.treetop.management",
+    "productName": "Treetop Management",
+    "copyright": "Copyright © Treetop Management",
+    "asarUnpack": ["electron/preload.cjs"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/main.cjs",
+      "electron/preload.cjs",
+      "electron/icon.ico",
+      "!electron/electron-dev.cjs",
+      "!scripts/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icon.ico",
+      "executableName": "Treetop Management"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Treetop Management"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "cjmdevs",
+      "repo": "Treetop",
+      "releaseType": "release"
+    }
   }
 }

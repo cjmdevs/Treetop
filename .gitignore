@@ -5,3 +5,4 @@ server/data/
 dist/
 server/data/*.db
 server/BOOTSTRAP_TOKEN.txt
+release/

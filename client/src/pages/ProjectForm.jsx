@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projectsApi } from '../api/projects'
 import { contactsApi } from '../api/contacts'
+import { usersApi }    from '../api/users'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import { useStatuses } from '../context/StatusesContext'
@@ -13,7 +14,6 @@ const PROJECT_TYPES = ['1040','1041','1065','1120','1120S','Bookkeeping','Audit'
 const ENTITY_TYPES  = ['Individual','SMLLC','LLC','S-Corp','C-Corp','Partnership','Trust','Non-Profit','Other']
 const ENG_TYPES     = ['Tax Return','Bookkeeping','Audit','Advisory','Payroll','Other']
 const RECURRENCE    = ['Annually','Quarterly','Monthly','None']
-const STAFF_NAMES   = ['Marcus Maurer','Sofia Graf','Diego Rivera','Carson']
 const PRIORITIES    = ['Low','Normal','High']
 
 const EMPTY = {
@@ -80,9 +80,15 @@ export default function ProjectForm() {
   const pickerInputRef  = useRef(null)
   const pickerLoadedRef = useRef(false)
 
+  const [staffNames, setStaffNames] = useState([])
+
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(!isNew)
+
+  useEffect(() => {
+    usersApi.list().then(users => setStaffNames(users.filter(u => u.active).map(u => u.full_name))).catch(() => {})
+  }, [])
 
   // Pre-fill preparer + default status for new projects
   useEffect(() => {
@@ -609,7 +615,7 @@ export default function ProjectForm() {
                 <label className={lbl}>{label}</label>
                 <select value={form[k]} onChange={set(k)} className={sel}>
                   <option value="">—</option>
-                  {STAFF_NAMES.map(n => <option key={n}>{n}</option>)}
+                  {staffNames.map(n => <option key={n}>{n}</option>)}
                 </select>
               </div>
             ))}

@@ -185,7 +185,7 @@ export default function Settings() {
   const loadCodes       = () => serviceCodesApi.listAll().then(setCodes)
   const loadRates       = () => staffRatesApi.list().then(setStaffRates)
   const loadRules       = () => automationsApi.list().then(setRules)
-  const loadClientTypes = () => contactClientTypesApi.list({ include_inactive: true }).then(r => setClientTypes(r.types ?? []))
+  const loadClientTypes = () => contactClientTypesApi.list({ include_inactive: true }).then(r => setClientTypes(Array.isArray(r) ? r : (r.types ?? [])))
   const loadUsers       = useCallback(() => usersApi.list().then(setUsers), [])
   const loadStatuses    = () => projectStatusesApi.list({ include_inactive: 'true' }).then(setPsRows)
   useEffect(() => { loadFields(); loadCodes(); loadRates(); loadRules(); loadClientTypes(); loadStatuses() }, [])

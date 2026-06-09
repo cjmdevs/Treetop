@@ -45,7 +45,7 @@ router.patch('/:id', (req, res) => {
 
   if (status === 'Complete' && prev.status !== 'Complete') {
     log('subtask_completed', 'engagement', req.params.engagementId,
-        `Subtask completed: "${updated.title}"`, prev.assigned_staff);
+        `Subtask completed: "${updated.title}"`, prev.assigned_staff, req.user.full_name);
     runSubtaskCompleted(req.params.engagementId, updated.title);
   }
 

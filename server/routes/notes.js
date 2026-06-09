@@ -22,7 +22,7 @@ router.post('/', (req, res) => {
          priority_flag ? 1 : 0, created_by || null, pinned ? 1 : 0);
   const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(r.lastInsertRowid);
   log('note_added', entity_type, entity_id,
-      `Note added: "${note_text.substring(0, 80)}${note_text.length > 80 ? '…' : ''}"`, created_by);
+      `Note added: "${note_text.substring(0, 80)}${note_text.length > 80 ? '…' : ''}"`, created_by, req.user.full_name);
   res.status(201).json(note);
 });
 

@@ -363,17 +363,14 @@ const insertClientType = db.prepare(
   'INSERT OR IGNORE INTO contact_client_types (code, label, sort_order) VALUES (?, ?, ?)'
 );
 [
-  ['1040',        '1040 – Individual',           1],
-  ['1120',        '1120 – C-Corp',               2],
-  ['1120S',       '1120S – S-Corp',              3],
-  ['1065',        '1065 – Partnership',          4],
-  ['1041',        '1041 – Estate / Trust',       5],
-  ['990',         '990 – Non-Profit',            6],
-  ['990-PF',      '990-PF – Private Foundation', 7],
-  ['Bookkeeping', 'Bookkeeping',                 8],
-  ['Payroll',     'Payroll',                     9],
-  ['Advisory',    'Advisory',                   10],
-  ['Other',       'Other',                      11],
+  ['individual',    'Individual',     1],
+  ['c-corp',        'C-Corporation',  2],
+  ['s-corp',        'S-Corporation',  3],
+  ['partnership',   'Partnership',    4],
+  ['llc',           'LLC',            5],
+  ['trust',         'Trust',          6],
+  ['estate',        'Estate',         7],
+  ['non-profit',    'Non-Profit',     8],
 ].forEach(([code, label, order]) => insertClientType.run(code, label, order));
 
 // ── Contacts ──────────────────────────────────────────────────────────────────

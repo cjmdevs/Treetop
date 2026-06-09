@@ -744,7 +744,8 @@ function OverviewTab({ contact, sensitive, revealed, onReveal, onNotesChange, on
 function EngagementsTab({ contact }) {
   const navigate = useNavigate()
   const engs = contact.engagements || []
-  const open = engs.filter(e => !['Complete','Cancelled'].includes(e.status)).length
+  const effectiveStatus = e => e.latest_project_status || e.status
+  const open = engs.filter(e => !['Complete','Cancelled'].includes(effectiveStatus(e))).length
 
   const STATUS_COLORS_ENG = {
     'Not Started': 'bg-gray-100 text-gray-600',
@@ -792,7 +793,7 @@ function EngagementsTab({ contact }) {
                   <td className="px-4 py-3 font-medium text-gray-900">{e.engagement_type}</td>
                   <td className="px-4 py-3 text-gray-500">{e.tax_year || '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS_ENG[e.status] || 'bg-gray-100 text-gray-600'}`}>{e.status}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS_ENG[effectiveStatus(e)] || 'bg-gray-100 text-gray-600'}`}>{effectiveStatus(e)}</span>
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{e.due_date || '—'}</td>
                   <td className="px-4 py-3 text-right text-gray-700">{(e.actual_hours || 0).toFixed(1)}</td>

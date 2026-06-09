@@ -178,6 +178,72 @@ function UtilizationBar({ name, hours }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
+// ── Reusable activity list ────────────────────────────────────────────────────
+
+function ActivityList({ items }) {
+  if (!items?.length) return <p className="text-sm text-gray-400">No activity yet.</p>
+  return (
+    <div className="space-y-3 overflow-y-auto max-h-60">
+      {items.map(a => (
+        <div key={a.id} className="flex items-start gap-2.5">
+          <span className="text-sm flex-shrink-0 leading-none mt-0.5">{EVENT_ICONS[a.event_type] || '•'}</span>
+          <div>
+            <p className="text-xs text-gray-700 leading-snug">{a.description}</p>
+            <p className="text-xs text-gray-400">
+              {a.acted_by_name ? `${a.acted_by_name} · ` : ''}
+              {new Date(a.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Personal overview (staff / manager) ──────────────────────────────────────
+
+function PersonalOverview({ stats, navigate }) {
+  return (
+    <>
+      {/* Hours this month */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
+        <StatCard label="Hours Logged This Month" value={`${(stats.myHoursThisMonth || 0).toFixed(1)}h`} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        {/* My active projects */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4 text-sm">My Active Projects</h2>
+          {(stats.myRecentProjects || []).length === 0 ? (
+            <p className="text-sm text-gray-400">No active projects assigned to you.</p>
+          ) : (
+            <div className="space-y-2">
+              {stats.myRecentProjects.map(p => (
+                <div key={p.id} onClick={() => navigate(`/projects/${p.id}`)}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{p.client_name}</p>
+                    <p className="text-xs text-gray-400">{p.project_type}{p.period_label ? ` · ${p.period_label}` : ''}</p>
+                  </div>
+                  <StatusBadge status={p.status} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* My recent activity */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4 text-sm">My Recent Activity</h2>
+          <ActivityList items={stats.myRecentActivity} />
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const { user }  = useAuth()
@@ -185,7 +251,6 @@ export default function Dashboard() {
 
   useEffect(() => { dashboardApi.stats().then(setStats).catch(console.error) }, [])
 
-  // Role-gated modules for the launcher
   const role = user?.role || 'staff'
   const visibleModules = ALL_MODULES.filter(m => m.roles.includes(role))
 
@@ -217,179 +282,169 @@ export default function Dashboard() {
         <div className="flex-1 h-px bg-gray-200" />
       </div>
 
-      {/* ── Admin alerts ──────────────────────────────────────────────────── */}
-      {user?.role === 'admin' && <AdminAlerts />}
-
-      {/* ── KPI strip ─────────────────────────────────────────────────────── */}
       {stats ? (
-        <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-            <StatCard label="Active Engagements" value={stats.activeEngagements} />
-            <StatCard label="Due This Week"       value={stats.dueThisWeek} />
-            <StatCard label="Unbilled Hours"      value={`${stats.unbilledHours.toFixed(1)}h`} />
-            <StatCard label="Unbilled Amount"     value={`$${(stats.unbilledAmount || 0).toLocaleString()}`} />
-          </div>
+        stats.isPersonal ? (
+          <PersonalOverview stats={stats} navigate={navigate} />
+        ) : (
+          <>
+            {/* ── Admin alerts ────────────────────────────────────────────── */}
+            <AdminAlerts />
 
-          <div className="grid grid-cols-3 gap-6 mb-8">
-            {/* AR Aging */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4 text-sm">AR Aging</h2>
-              <div className="space-y-2">
-                {[
-                  { label: '0–30 days',  val: stats.arBuckets?.current    || 0, color: 'text-emerald-600' },
-                  { label: '31–60 days', val: stats.arBuckets?.days31_60  || 0, color: 'text-amber-600' },
-                  { label: '61–90 days', val: stats.arBuckets?.days61_90  || 0, color: 'text-orange-600' },
-                  { label: '90+ days',   val: stats.arBuckets?.days90plus || 0, color: 'text-red-600' },
-                ].map(({ label, val, color }) => (
-                  <div key={label} className="flex justify-between text-sm">
-                    <span className="text-gray-500">{label}</span>
-                    <span className={`font-mono font-semibold ${color}`}>${val.toLocaleString()}</span>
-                  </div>
-                ))}
-                <div className="border-t border-gray-100 pt-2 flex justify-between text-sm font-semibold">
-                  <span className="text-gray-700">Total AR</span>
-                  <span className="font-mono text-gray-900">${totalAR.toLocaleString()}</span>
-                </div>
-              </div>
-              <button onClick={() => navigate('/ar')} className="mt-3 text-xs text-accent hover:text-accent-dark font-medium">
-                View full AR →
-              </button>
+            {/* ── KPI strip ───────────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+              <StatCard label="Active Engagements" value={stats.activeEngagements} />
+              <StatCard label="Due This Week"       value={stats.dueThisWeek} />
+              <StatCard label="Unbilled Hours"      value={`${stats.unbilledHours.toFixed(1)}h`} />
+              <StatCard label="Unbilled Amount"     value={`$${(stats.unbilledAmount || 0).toLocaleString()}`} />
             </div>
 
-            {/* Staff Utilization */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4 text-sm">Staff Utilization (This Week)</h2>
-              <div className="space-y-3">
-                {(stats.staffUtilization || []).map(s => (
-                  <UtilizationBar key={s.staff_member} name={s.staff_member} hours={s.hours_this_week} />
-                ))}
-                {(!stats.staffUtilization || stats.staffUtilization.length === 0) && (
-                  <p className="text-xs text-gray-400">No time logged this week.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Budget Alerts */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4 text-sm flex items-center gap-2">
-                <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />
-                Budget Alerts
-              </h2>
-              <div className="space-y-3">
-                {(stats.budgetAlerts || []).map(e => {
-                  const pct = Math.round((e.actual_hours / e.budgeted_hours) * 100)
-                  return (
-                    <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
-                      className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2 transition-colors">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="font-medium text-gray-800 truncate">{e.client_name}</span>
-                        <span className={`font-mono font-semibold flex-shrink-0 ml-2 ${pct >= 100 ? 'text-red-600' : 'text-amber-600'}`}>{pct}%</span>
-                      </div>
-                      <p className="text-xs text-gray-400">{e.actual_hours.toFixed(1)}h of {e.budgeted_hours}h</p>
-                    </div>
-                  )
-                })}
-                {(!stats.budgetAlerts || stats.budgetAlerts.length === 0) && (
-                  <p className="text-xs text-gray-400">All engagements within budget.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Overdue Engagements */}
-          {stats.overdueEngagements?.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
-              <h2 className="font-semibold text-red-700 mb-3 flex items-center gap-2 text-sm">
-                <ClockIcon className="w-4 h-4" />
-                Overdue ({stats.overdueEngagements.length})
-              </h2>
-              <div className="space-y-2">
-                {stats.overdueEngagements.map(e => (
-                  <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
-                    className="flex items-center justify-between cursor-pointer hover:bg-red-100 rounded-lg px-3 py-2 transition-colors">
-                    <div>
-                      <span className="text-sm font-medium text-red-800">{e.client_name}</span>
-                      <span className="text-xs text-red-500 ml-2">{e.engagement_type}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-red-500">{e.assigned_staff || '—'}</span>
-                      <span className="text-xs font-mono text-red-700 font-semibold">Due {e.due_date}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            {/* Due This Week */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4 text-sm">Due This Week</h2>
-              {(stats.dueThisWeekDetail || []).length === 0 ? (
-                <p className="text-sm text-gray-400">Nothing due this week.</p>
-              ) : (
+            <div className="grid grid-cols-3 gap-6 mb-8">
+              {/* AR Aging */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="font-semibold text-gray-900 mb-4 text-sm">AR Aging</h2>
                 <div className="space-y-2">
-                  {stats.dueThisWeekDetail.map(e => (
-                    <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
-                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{e.client_name}</p>
-                        <p className="text-xs text-gray-400">{e.engagement_type} · {e.assigned_staff || '—'}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0 ml-3">
-                        <p className="text-xs font-mono text-gray-600">{e.due_date}</p>
-                        <StatusBadge status={e.status} />
-                      </div>
+                  {[
+                    { label: '0–30 days',  val: stats.arBuckets?.current    || 0, color: 'text-emerald-600' },
+                    { label: '31–60 days', val: stats.arBuckets?.days31_60  || 0, color: 'text-amber-600' },
+                    { label: '61–90 days', val: stats.arBuckets?.days61_90  || 0, color: 'text-orange-600' },
+                    { label: '90+ days',   val: stats.arBuckets?.days90plus || 0, color: 'text-red-600' },
+                  ].map(({ label, val, color }) => (
+                    <div key={label} className="flex justify-between text-sm">
+                      <span className="text-gray-500">{label}</span>
+                      <span className={`font-mono font-semibold ${color}`}>${val.toLocaleString()}</span>
                     </div>
                   ))}
+                  <div className="border-t border-gray-100 pt-2 flex justify-between text-sm font-semibold">
+                    <span className="text-gray-700">Total AR</span>
+                    <span className="font-mono text-gray-900">${totalAR.toLocaleString()}</span>
+                  </div>
                 </div>
-              )}
-            </div>
+                <button onClick={() => navigate('/ar')} className="mt-3 text-xs text-accent hover:text-accent-dark font-medium">
+                  View full AR →
+                </button>
+              </div>
 
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4 text-sm">Recent Activity</h2>
-              {(stats.recentActivity || []).length === 0 ? (
-                <p className="text-sm text-gray-400">No activity yet.</p>
-              ) : (
-                <div className="space-y-3 overflow-y-auto max-h-60">
-                  {stats.recentActivity.map(a => (
-                    <div key={a.id} className="flex items-start gap-2.5">
-                      <span className="text-sm flex-shrink-0 leading-none mt-0.5">{EVENT_ICONS[a.event_type] || '•'}</span>
-                      <div>
-                        <p className="text-xs text-gray-700 leading-snug">{a.description}</p>
-                        <p className="text-xs text-gray-400">{new Date(a.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                      </div>
-                    </div>
+              {/* Staff Utilization */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="font-semibold text-gray-900 mb-4 text-sm">Staff Utilization (This Week)</h2>
+                <div className="space-y-3">
+                  {(stats.staffUtilization || []).map(s => (
+                    <UtilizationBar key={s.staff_member} name={s.staff_member} hours={s.hours_this_week} />
                   ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Recent Engagements */}
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h2>
-          <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {stats.recentEngagements.map(e => (
-              <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
-                className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
-                <div>
-                  <p className="font-medium text-gray-900">{e.client_name}</p>
-                  <p className="text-sm text-gray-500">
-                    {e.engagement_type}{e.tax_year ? ` · ${e.tax_year}` : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={e.status} />
-                  <span className="text-sm text-gray-400 w-32 text-right truncate">{e.assigned_staff || '—'}</span>
+                  {(!stats.staffUtilization || stats.staffUtilization.length === 0) && (
+                    <p className="text-xs text-gray-400">No time logged this week.</p>
+                  )}
                 </div>
               </div>
-            ))}
-            {stats.recentEngagements.length === 0 && (
-              <p className="px-5 py-8 text-center text-gray-400">No engagements yet.</p>
+
+              {/* Budget Alerts */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="font-semibold text-gray-900 mb-4 text-sm flex items-center gap-2">
+                  <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />
+                  Budget Alerts
+                </h2>
+                <div className="space-y-3">
+                  {(stats.budgetAlerts || []).map(e => {
+                    const pct = Math.round((e.actual_hours / e.budgeted_hours) * 100)
+                    return (
+                      <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
+                        className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2 transition-colors">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-medium text-gray-800 truncate">{e.client_name}</span>
+                          <span className={`font-mono font-semibold flex-shrink-0 ml-2 ${pct >= 100 ? 'text-red-600' : 'text-amber-600'}`}>{pct}%</span>
+                        </div>
+                        <p className="text-xs text-gray-400">{e.actual_hours.toFixed(1)}h of {e.budgeted_hours}h</p>
+                      </div>
+                    )
+                  })}
+                  {(!stats.budgetAlerts || stats.budgetAlerts.length === 0) && (
+                    <p className="text-xs text-gray-400">All engagements within budget.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Overdue Engagements */}
+            {stats.overdueEngagements?.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
+                <h2 className="font-semibold text-red-700 mb-3 flex items-center gap-2 text-sm">
+                  <ClockIcon className="w-4 h-4" />
+                  Overdue ({stats.overdueEngagements.length})
+                </h2>
+                <div className="space-y-2">
+                  {stats.overdueEngagements.map(e => (
+                    <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
+                      className="flex items-center justify-between cursor-pointer hover:bg-red-100 rounded-lg px-3 py-2 transition-colors">
+                      <div>
+                        <span className="text-sm font-medium text-red-800">{e.client_name}</span>
+                        <span className="text-xs text-red-500 ml-2">{e.engagement_type}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-500">{e.assigned_staff || '—'}</span>
+                        <span className="text-xs font-mono text-red-700 font-semibold">Due {e.due_date}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </>
+
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* Due This Week */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="font-semibold text-gray-900 mb-4 text-sm">Due This Week</h2>
+                {(stats.dueThisWeekDetail || []).length === 0 ? (
+                  <p className="text-sm text-gray-400">Nothing due this week.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {stats.dueThisWeekDetail.map(e => (
+                      <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
+                        className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{e.client_name}</p>
+                          <p className="text-xs text-gray-400">{e.engagement_type} · {e.assigned_staff || '—'}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-3">
+                          <p className="text-xs font-mono text-gray-600">{e.due_date}</p>
+                          <StatusBadge status={e.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Activity */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="font-semibold text-gray-900 mb-4 text-sm">Recent Activity</h2>
+                <ActivityList items={stats.recentActivity} />
+              </div>
+            </div>
+
+            {/* Recent Engagements */}
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h2>
+            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+              {stats.recentEngagements.map(e => (
+                <div key={e.id} onClick={() => navigate(`/engagements/${e.id}`)}
+                  className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div>
+                    <p className="font-medium text-gray-900">{e.client_name}</p>
+                    <p className="text-sm text-gray-500">
+                      {e.engagement_type}{e.tax_year ? ` · ${e.tax_year}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={e.status} />
+                    <span className="text-sm text-gray-400 w-32 text-right truncate">{e.assigned_staff || '—'}</span>
+                  </div>
+                </div>
+              ))}
+              {stats.recentEngagements.length === 0 && (
+                <p className="px-5 py-8 text-center text-gray-400">No engagements yet.</p>
+              )}
+            </div>
+          </>
+        )
       ) : (
         <div className="text-gray-400 text-sm">Loading overview…</div>
       )}

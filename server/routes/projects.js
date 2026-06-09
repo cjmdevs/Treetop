@@ -43,7 +43,7 @@ function advanceDueDate(dueDateStr, freq) {
   return d.toISOString().split('T')[0];
 }
 
-function doRollForward(project, eng, targetPeriodLabel) {
+function doRollForward(project, eng, targetPeriodLabel, actedByName = null) {
   const freq = eng.recurrence_frequency || 'Annually';
   const customPeriod = targetPeriodLabel && String(targetPeriodLabel).trim();
   const newPeriodLabel = customPeriod || advancePeriodLabel(project.period_label || '');
@@ -96,7 +96,8 @@ function doRollForward(project, eng, targetPeriodLabel) {
   }
 
   log('project_rolled_forward', 'project', newProjectId,
-    `Rolled forward from #${project.id} (${project.period_label}) → ${newPeriodLabel}`);
+    `Rolled forward from #${project.id} (${project.period_label}) → ${newPeriodLabel}`,
+    null, actedByName);
 
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(newProjectId);
 }
@@ -224,7 +225,7 @@ router.post('/roll-forward-batch', (req, res) => {
     const eng = db.prepare('SELECT * FROM engagements WHERE id = ?').get(project.engagement_id);
     if (!eng) { results.push({ id, error: 'Engagement not found' }); continue; }
     try {
-      const newProject = doRollForward(project, eng);
+      const newProject = doRollForward(project, eng, null, req.user.full_name);
       results.push({ id, newProjectId: newProject.id, period_label: newProject.period_label });
     } catch (err) {
       results.push({ id, error: err.message });
@@ -344,7 +345,8 @@ router.post('/', (req, res) => {
   );
 
   log('project_created', 'project', result.lastInsertRowid,
-    `Project created: ${client_name} — ${period_label || ''}`);
+    `Project created: ${client_name} — ${period_label || ''}`,
+    null, req.user.full_name);
 
   res.status(201).json(db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -418,7 +420,7 @@ router.put('/:id', (req, res) => {
 
   if (status && status !== prev.status) {
     log('status_changed', 'project', req.params.id,
-      `Status: "${prev.status}" → "${status}"`, prev.primary_partner);
+      `Status: "${prev.status}" → "${status}"`, prev.primary_partner, req.user.full_name);
   }
 
   // JOIN engagements so the response includes the freshly-updated engagement fields
@@ -450,7 +452,7 @@ router.patch('/:id/status', (req, res) => {
   `).run(status, startDate, completedDate, deliveredDate, req.params.id);
 
   log('status_changed', 'project', req.params.id,
-    `Status: "${prev.status}" → "${status}"`, prev.primary_partner);
+    `Status: "${prev.status}" → "${status}"`, prev.primary_partner, req.user.full_name);
 
   res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id));
 });
@@ -463,7 +465,7 @@ router.post('/:id/roll-forward', (req, res) => {
   if (!eng) return res.status(404).json({ error: 'Engagement not found' });
 
   const { target_period } = req.body || {};
-  const newProject = doRollForward(project, eng, target_period || null);
+  const newProject = doRollForward(project, eng, target_period || null, req.user.full_name);
   res.status(201).json(newProject);
 });
 

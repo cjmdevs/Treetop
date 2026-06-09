@@ -287,6 +287,11 @@ function migrate() {
     WHERE project_id IS NULL
   `);
 
+  // acted_by_name on activity_log (added 2026-06-08 — captures the acting user for accountability)
+  const actLogCols = db.prepare('PRAGMA table_info(activity_log)').all().map(c => c.name);
+  if (!actLogCols.includes('acted_by_name'))
+    db.exec('ALTER TABLE activity_log ADD COLUMN acted_by_name TEXT');
+
   // contact_person on contacts (added 2026-06-04 — simple text field for business key contact)
   const contactColsFinal = db.prepare('PRAGMA table_info(contacts)').all().map(c => c.name);
   if (!contactColsFinal.includes('contact_person'))

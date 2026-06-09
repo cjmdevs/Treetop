@@ -41,7 +41,7 @@ router.post('/', (req, res) => {
          payment_method || 'Check', reference_number || null, notes || null);
   const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(r.lastInsertRowid);
   log('payment_received', 'payment', r.lastInsertRowid,
-      `Payment received: $${amount} from ${client_name} (${payment_method || 'Check'})`);
+      `Payment received: $${amount} from ${client_name} (${payment_method || 'Check'})`, null, req.user.full_name);
   res.status(201).json(payment);
 });
 

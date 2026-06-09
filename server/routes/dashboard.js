@@ -4,6 +4,42 @@ const router = express.Router();
 const { runDueDateChecks } = require('../lib/automationEngine');
 
 router.get('/', (req, res) => {
+  // Non-admin: return personal data only — no firm-wide financials or other users' data
+  if (req.user.role !== 'admin') {
+    const staffName  = req.user.full_name;
+    const today      = new Date().toISOString().split('T')[0];
+    const monthStart = today.slice(0, 8) + '01';
+
+    const { total: myHoursThisMonth } = db.prepare(`
+      SELECT COALESCE(SUM(hours), 0) AS total
+      FROM time_entries
+      WHERE staff_member = ? AND date >= ? AND date <= ?
+    `).get(staffName, monthStart, today);
+
+    const myRecentActivity = db.prepare(`
+      SELECT * FROM activity_log
+      WHERE acted_by_name = ?
+      ORDER BY created_at DESC LIMIT 10
+    `).all(staffName);
+
+    const myRecentProjects = db.prepare(`
+      SELECT p.*, e.engagement_type, e.recurrence_frequency
+      FROM projects p
+      JOIN engagements e ON e.id = p.engagement_id
+      WHERE (p.primary_partner = ? OR p.manager = ? OR p.preparer = ? OR p.reviewer = ? OR p.in_charge = ?)
+        AND p.status NOT IN ('Completed','Delivered')
+      ORDER BY p.updated_at DESC LIMIT 6
+    `).all(staffName, staffName, staffName, staffName, staffName);
+
+    return res.json({
+      isPersonal: true,
+      myHoursThisMonth,
+      myRecentActivity,
+      myRecentProjects,
+    });
+  }
+
+  // Admin: full firm overview
   const today    = new Date().toISOString().split('T')[0];
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
   const weekAgo  = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
@@ -51,7 +87,7 @@ router.get('/', (req, res) => {
     const days = Math.floor((new Date() - refDate) / 86400000);
     if (days <= 30)      arBuckets.current    += r.invoice_amount;
     else if (days <= 60) arBuckets.days31_60  += r.invoice_amount;
-    else if (days <= 90) arBuckets.days61_90  += r.invoice_amount;
+    else if (days <= 90) arBuckets.days61_60  += r.invoice_amount;
     else                 arBuckets.days90plus += r.invoice_amount;
   });
 

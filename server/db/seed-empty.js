@@ -62,5 +62,20 @@ db.exec(`
 `)
 db.pragma('foreign_keys = ON')
 
+// Default client types — present in every deployment so the Contacts picker is populated
+const insertClientType = db.prepare(
+  'INSERT OR IGNORE INTO contact_client_types (code, label, sort_order) VALUES (?, ?, ?)'
+)
+;[
+  ['individual',  'Individual',    1],
+  ['c-corp',      'C-Corporation', 2],
+  ['s-corp',      'S-Corporation', 3],
+  ['partnership', 'Partnership',   4],
+  ['llc',         'LLC',           5],
+  ['trust',       'Trust',         6],
+  ['estate',      'Estate',        7],
+  ['non-profit',  'Non-Profit',    8],
+].forEach(([code, label, order]) => insertClientType.run(code, label, order))
+
 console.log('Empty database ready — no users, no data.')
 console.log('Start the server (npm run dev) to generate a bootstrap token.')

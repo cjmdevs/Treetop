@@ -136,7 +136,8 @@ router.get('/:id', (req, res) => {
   const engagements = db.prepare(`
     SELECT e.*,
       COALESCE(SUM(te.hours), 0) AS actual_hours,
-      COALESCE(SUM(CASE WHEN te.billable = 1 THEN te.hours * COALESCE(te.billing_rate, 0) ELSE 0 END), 0) AS actual_amount
+      COALESCE(SUM(CASE WHEN te.billable = 1 THEN te.hours * COALESCE(te.billing_rate, 0) ELSE 0 END), 0) AS actual_amount,
+      (SELECT p.status FROM projects p WHERE p.engagement_id = e.id ORDER BY p.created_at DESC LIMIT 1) AS latest_project_status
     FROM engagements e
     LEFT JOIN time_entries te ON te.engagement_id = e.id
     WHERE e.client_name = ?

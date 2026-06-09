@@ -60,7 +60,7 @@ router.post('/generate/:billingRecordId', (req, res) => {
         INSERT INTO invoice_line_items (invoice_id, description, date, service_code, staff_member, hours, rate, amount)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).run(invId,
-             `${te.notes || br.engagement_type} — ${te.staff_member}`,
+             te.notes || br.engagement_type,
              te.date, te.service_code || null, te.staff_member, te.hours, te.billing_rate || 0, amount);
     });
   } else {

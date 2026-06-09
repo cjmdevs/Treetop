@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { invoicesApi } from '../api/invoices'
+import { firmSettingsApi } from '../api/firmSettings'
 import { PrinterIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 export default function InvoiceView() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [inv, setInv] = useState(null)
+  const [inv,  setInv]  = useState(null)
+  const [firm, setFirm] = useState({ firm_name: '', firm_address_block: '' })
 
   useEffect(() => { invoicesApi.get(id).then(setInv) }, [id])
+  useEffect(() => { firmSettingsApi.get().then(setFirm).catch(() => {}) }, [])
 
   if (!inv) return <div className="p-8 text-gray-400">Loading...</div>
 
@@ -27,8 +30,14 @@ export default function InvoiceView() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Treetop Management</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Practice Management</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {firm.firm_name || 'Treetop Management'}
+            </h1>
+            {firm.firm_address_block ? (
+              <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-line">{firm.firm_address_block}</p>
+            ) : (
+              <p className="text-sm text-gray-500 mt-0.5">Practice Management</p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-3xl font-bold font-mono text-accent">{inv.invoice_number}</p>

@@ -292,6 +292,13 @@ function migrate() {
   if (!actLogCols.includes('acted_by_name'))
     db.exec('ALTER TABLE activity_log ADD COLUMN acted_by_name TEXT');
 
+  // billing_record_id on time_entries — double-bill guard (added 2026-06-08)
+  // Links each entry to the billing_record it was swept into; NULL = not yet billed.
+  // Checked before auto-billing: only entries with billing_record_id IS NULL are swept.
+  const teColsBilling = db.prepare('PRAGMA table_info(time_entries)').all().map(c => c.name);
+  if (!teColsBilling.includes('billing_record_id'))
+    db.exec('ALTER TABLE time_entries ADD COLUMN billing_record_id INTEGER REFERENCES billing_records(id) ON DELETE SET NULL');
+
   // contact_person on contacts (added 2026-06-04 — simple text field for business key contact)
   const contactColsFinal = db.prepare('PRAGMA table_info(contacts)').all().map(c => c.name);
   if (!contactColsFinal.includes('contact_person'))

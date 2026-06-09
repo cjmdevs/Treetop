@@ -58,5 +58,6 @@ app.use('/api/projects',             require('./routes/projects'));
 app.use('/api/user-preferences',    require('./routes/userPreferences'));
 app.use('/api/project-statuses',   require('./routes/projectStatuses'));
 app.use('/api/invite-keys',        require('./routes/inviteKeys'));
+app.use('/api/firm-settings',      require('./routes/firmSettings'));
 
 module.exports = app;

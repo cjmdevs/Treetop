@@ -68,10 +68,12 @@ function initializeDatabase() {
       internal_memo INTEGER NOT NULL DEFAULT 0,
       entry_status TEXT NOT NULL DEFAULT 'draft',
       user_id INTEGER,
+      billing_record_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (billing_record_id) REFERENCES billing_records(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS billing_records (

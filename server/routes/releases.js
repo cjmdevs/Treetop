@@ -1,6 +1,7 @@
 const express = require('express');
 const db      = require('../db/database');
 const router  = express.Router();
+const { autoBillReleasedEntries } = require('../lib/autoBilling');
 
 // GET /api/releases — staff sees own, admin/manager sees all
 router.get('/', (req, res) => {
@@ -44,14 +45,12 @@ router.post('/preview', (req, res) => {
       )
   `;
   const params = [req.user.id, req.user.full_name, start_date, end_date, req.user.id];
-  console.log('[releases/preview] sql params:', { user_id: req.user.id, staff_member: req.user.full_name, start_date, end_date });
   const row = db.prepare(sql).get(...params);
-  console.log('[releases/preview] result:', row);
 
   res.json({ start_date, end_date, ...row });
 });
 
-// POST /api/releases — create a release snapshot
+// POST /api/releases — create a release snapshot + auto-bill billable entries
 router.post('/', (req, res) => {
   const { start_date, end_date } = req.body;
   if (!start_date || !end_date)
@@ -82,7 +81,22 @@ router.post('/', (req, res) => {
     WHERE tr.id = ?
   `).get(result.lastInsertRowid);
 
-  res.status(201).json(release);
+  // Auto-bill: collect billable entries in this date range not yet billed
+  // (billing_record_id IS NULL guard in helper prevents double-billing)
+  const billableEntries = db.prepare(`
+    SELECT id FROM time_entries
+    WHERE (user_id = ? OR (user_id IS NULL AND staff_member = ?))
+      AND date BETWEEN ? AND ?
+      AND billable = 1
+      AND billing_record_id IS NULL
+  `).all(req.user.id, req.user.full_name, start_date, end_date);
+
+  const autoBilling = autoBillReleasedEntries(
+    billableEntries.map(e => e.id),
+    end_date
+  );
+
+  res.status(201).json({ ...release, autoBilling });
 });
 
 // DELETE /api/releases/:id — admin only

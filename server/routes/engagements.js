@@ -39,6 +39,20 @@ router.get('/', (req, res) => {
   res.json(db.prepare(query).all(...params));
 });
 
+// GET /api/engagements/client-names?q=text&limit=20
+// Returns distinct client_name values matching partial text — for autocomplete; never loads full list
+router.get('/client-names', (req, res) => {
+  const { q, limit = '20' } = req.query;
+  if (!q || q.length < 2) return res.json({ names: [] });
+  const cap   = Math.min(parseInt(limit, 10) || 20, 50);
+  const names = db.prepare(
+    `SELECT DISTINCT client_name FROM engagements
+     WHERE LOWER(client_name) LIKE LOWER(?) AND client_name IS NOT NULL
+     ORDER BY client_name LIMIT ?`
+  ).all(`%${q}%`, cap).map(r => r.client_name);
+  res.json({ names });
+});
+
 router.get('/:id', (req, res) => {
   const eng = db.prepare('SELECT * FROM engagements WHERE id = ?').get(req.params.id);
   if (!eng) return res.status(404).json({ error: 'Not found' });

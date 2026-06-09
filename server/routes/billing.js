@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db/database');
 const router = express.Router();
 const { log } = require('../lib/activityLogger');
+const { claimEntriesForBillingRecord } = require('../lib/autoBilling');
 
 // /summary must be declared before /:id so Express doesn't treat "summary" as an ID
 router.get('/summary', (req, res) => {
@@ -35,11 +36,24 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
   const { engagement_id, invoice_amount, status, invoice_date, notes } = req.body;
-  const result = db.prepare(`
-    INSERT INTO billing_records (engagement_id, invoice_amount, status, invoice_date, notes)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(engagement_id, invoice_amount, status || 'Unbilled', invoice_date || null, notes || null);
-  const record = db.prepare('SELECT * FROM billing_records WHERE id = ?').get(result.lastInsertRowid);
+
+  // Create record + stamp engagement's unbilled entries atomically.
+  // Stamping closes the double-bill gap: these entries will never be swept
+  // into an auto-billing record on a future release.
+  let record;
+  db.transaction(() => {
+    const result = db.prepare(`
+      INSERT INTO billing_records (engagement_id, invoice_amount, status, invoice_date, notes)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(engagement_id, invoice_amount, status || 'Unbilled', invoice_date || null, notes || null);
+
+    record = db.prepare('SELECT * FROM billing_records WHERE id = ?').get(result.lastInsertRowid);
+
+    // Stamp all currently-unbilled billable entries for this engagement.
+    // (claimEntriesForBillingRecord uses a nested savepoint inside this transaction.)
+    claimEntriesForBillingRecord(record.id, engagement_id);
+  })();
+
   log('billing_created', 'engagement', engagement_id,
       `Billing record created: $${invoice_amount} (${status || 'Unbilled'})`, null, req.user.full_name);
   res.status(201).json(record);
@@ -61,8 +75,14 @@ router.put('/:id', (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM billing_records WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  // Unlink entries BEFORE deleting the record. Without this, entries retain a
+  // billing_record_id pointing to a deleted row (FK is not enforced in this DB),
+  // which would permanently block them from being billed again.
+  db.transaction(() => {
+    db.prepare('UPDATE time_entries SET billing_record_id = NULL WHERE billing_record_id = ?')
+      .run(req.params.id);
+    db.prepare('DELETE FROM billing_records WHERE id = ?').run(req.params.id);
+  })();
   res.status(204).send();
 });
 

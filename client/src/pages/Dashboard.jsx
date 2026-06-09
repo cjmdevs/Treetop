@@ -155,9 +155,10 @@ function AdminAlerts() {
 // ── Staff utilization bar ─────────────────────────────────────────────────────
 
 function UtilizationBar({ name, hours }) {
-  const pct   = Math.min((hours / 40) * 100, 100)
+  const safeHours = Number(hours ?? 0)
+  const pct   = Math.min((safeHours / 40) * 100, 100)
   const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-400' : 'bg-accent'
-  const initials = name.split(' ').map(n => n[0]).join('')
+  const initials = (name || '').split(' ').map(n => n[0]).join('')
   return (
     <div className="flex items-center gap-3">
       <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
@@ -166,7 +167,7 @@ function UtilizationBar({ name, hours }) {
       <div className="flex-1">
         <div className="flex justify-between text-xs mb-1">
           <span className="text-gray-700 font-medium">{name}</span>
-          <span className="font-mono text-gray-500">{hours.toFixed(1)}h / 40h</span>
+          <span className="font-mono text-gray-500">{safeHours.toFixed(1)}h / 40h</span>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
@@ -207,7 +208,7 @@ function PersonalOverview({ stats, navigate }) {
     <>
       {/* Hours this month */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
-        <StatCard label="Hours Logged This Month" value={`${(stats.myHoursThisMonth || 0).toFixed(1)}h`} />
+        <StatCard label="Hours Logged This Month" value={`${Number(stats.myHoursThisMonth ?? 0).toFixed(1)}h`} />
       </div>
 
       <div className="grid grid-cols-2 gap-6 mb-6">
@@ -294,7 +295,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
               <StatCard label="Active Engagements" value={stats.activeEngagements} />
               <StatCard label="Due This Week"       value={stats.dueThisWeek} />
-              <StatCard label="Unbilled Hours"      value={`${stats.unbilledHours.toFixed(1)}h`} />
+              <StatCard label="Unbilled Hours"      value={`${Number(stats.unbilledHours ?? 0).toFixed(1)}h`} />
               <StatCard label="Unbilled Amount"     value={`$${(stats.unbilledAmount || 0).toLocaleString()}`} />
             </div>
 
@@ -353,7 +354,7 @@ export default function Dashboard() {
                           <span className="font-medium text-gray-800 truncate">{e.client_name}</span>
                           <span className={`font-mono font-semibold flex-shrink-0 ml-2 ${pct >= 100 ? 'text-red-600' : 'text-amber-600'}`}>{pct}%</span>
                         </div>
-                        <p className="text-xs text-gray-400">{e.actual_hours.toFixed(1)}h of {e.budgeted_hours}h</p>
+                        <p className="text-xs text-gray-400">{Number(e.actual_hours ?? 0).toFixed(1)}h of {e.budgeted_hours}h</p>
                       </div>
                     )
                   })}

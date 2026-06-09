@@ -1,43 +1,49 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { reportsApi }    from '../api/reports'
 import { payPeriodsApi } from '../api/payPeriods'
+import { usersApi }      from '../api/users'
+import { engagementsApi } from '../api/engagements'
 import { useSortable }   from '../hooks/useSortable'
 import { SkeletonTable } from '../components/Skeleton'
 import { useAuth }       from '../context/AuthContext'
 
 // ── Report categories + registry ──────────────────────────────────────────────
+// hasStaffFilter  — show staff dropdown
+// hasClientFilter — show client dropdown
+// hasReleaseFilter — show release status select
+// periodPicker    — uses period selector instead of date range
 const CATEGORIES = [
   {
     key: 'time', label: 'Time',
     reports: [
-      { key: 'staff_productivity',   label: 'Staff Productivity',   hasReleaseFilter: true },
-      { key: 'time_by_service_code', label: 'Time by Service Code', hasReleaseFilter: true },
-      { key: 'time_by_client',       label: 'Time by Client',       hasReleaseFilter: true },
-      { key: 'timesheet',            label: 'Timesheet',            periodPicker: true, hasReleaseFilter: true },
+      { key: 'staff_productivity',   label: 'Staff Productivity',   hasStaffFilter: true, hasClientFilter: true, hasReleaseFilter: true },
+      { key: 'time_by_service_code', label: 'Time by Service Code', hasStaffFilter: true, hasClientFilter: true, hasReleaseFilter: true },
+      { key: 'time_by_client',       label: 'Time by Client',       hasStaffFilter: true,                        hasReleaseFilter: true },
+      { key: 'timesheet',            label: 'Timesheet',            hasStaffFilter: true, periodPicker: true,    hasReleaseFilter: true },
     ],
   },
   {
     key: 'billing', label: 'Billing & AR',
     reports: [
-      { key: 'invoice_register', label: 'Invoice Register' },
-      { key: 'collections',      label: 'Collections' },
-      { key: 'ar_aging',         label: 'AR Aging' },
-      { key: 'client_balance',   label: 'Client Balances' },
+      { key: 'invoice_register', label: 'Invoice Register', hasClientFilter: true },
+      { key: 'collections',      label: 'Collections',      hasClientFilter: true },
+      { key: 'ar_aging',         label: 'AR Aging',         hasClientFilter: true },
+      { key: 'client_balance',   label: 'Client Balances',  hasClientFilter: true },
     ],
   },
   {
     key: 'engagements', label: 'Engagements',
     reports: [
       { key: 'engagement_status', label: 'Engagement Status' },
-      { key: 'budget_variance',   label: 'Budget Variance' },
-      { key: 'overdue',           label: 'Overdue Engagements' },
+      { key: 'budget_variance',   label: 'Budget Variance',     hasStaffFilter: true, hasClientFilter: true },
+      { key: 'overdue',           label: 'Overdue Engagements', hasStaffFilter: true, hasClientFilter: true },
       { key: 'staff_workload',    label: 'Staff Workload' },
     ],
   },
   {
     key: 'payroll', label: 'Payroll', adminOnly: true,
     reports: [
-      { key: 'time_release_summary', label: 'Time Release Summary' },
+      { key: 'time_release_summary', label: 'Time Release Summary', hasStaffFilter: true },
       { key: 'unreleased_time',      label: 'Unreleased Time' },
     ],
   },
@@ -46,6 +52,7 @@ const CATEGORIES = [
 const ENG_TYPES   = ['Tax Return', 'Bookkeeping', 'Audit', 'Advisory', 'Payroll', 'Other']
 const TODAY       = new Date().toISOString().split('T')[0]
 const MONTH_START = TODAY.slice(0, 8) + '01'
+const INPUT_CLS   = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent'
 
 function fmtCurrency(n) {
   return '$' + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -281,10 +288,12 @@ export default function Reports() {
   const [startDate,     setStartDate]     = useState(MONTH_START)
   const [endDate,       setEndDate]       = useState(TODAY)
   const [staffFilter,   setStaffFilter]   = useState('')
+  const [clientFilter,  setClientFilter]  = useState('')
   const [typeFilter,    setTypeFilter]    = useState('')
   const [releaseFilter, setReleaseFilter] = useState('')
   const [periodId,      setPeriodId]      = useState(null)
   const [periods,       setPeriods]       = useState([])
+  const [staffList,     setStaffList]     = useState([])   // { id, full_name } for dropdown
   const [result,        setResult]        = useState(null)
   const [loading,       setLoading]       = useState(false)
   const [drill,         setDrill]         = useState(null)  // { staffName, startDate, endDate }
@@ -299,6 +308,8 @@ export default function Reports() {
         setPeriodId(ps.find(p => p.status === 'Open')?.id || ps[0]?.id)
       }
     }).catch(() => {})
+    // Load staff list for dropdown (active users only)
+    usersApi.list().then(us => setStaffList((us || []).filter(u => u.active))).catch(() => {})
   }, [])
 
   const run = async () => {
@@ -312,9 +323,10 @@ export default function Reports() {
         params.startDate = startDate
         params.endDate   = endDate
       }
-      if (staffFilter)   params.staff          = staffFilter
-      if (typeFilter)    params.engagementType = typeFilter
-      if (releaseFilter && activeMeta?.hasReleaseFilter) params.releaseFilter = releaseFilter
+      if (staffFilter)                                    params.staff          = staffFilter
+      if (clientFilter)                                   params.client         = clientFilter
+      if (typeFilter)                                     params.engagementType = typeFilter
+      if (releaseFilter && activeMeta?.hasReleaseFilter)  params.releaseFilter  = releaseFilter
       const r = await reportsApi.run(params)
       setResult(r)
     } finally {
@@ -330,7 +342,6 @@ export default function Reports() {
     exportCsv(cfg.columns, result.data, `${type}-${suffix}.csv`)
   }
 
-  const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent'
   const visibleCategories = CATEGORIES.filter(c => !c.adminOnly || isAdmin)
 
   return (
@@ -344,7 +355,7 @@ export default function Reports() {
             </p>
             {cat.reports.filter(r => !r.adminOnly || isAdmin).map(r => (
               <button key={r.key}
-                onClick={() => { setType(r.key); setResult(null); setDrill(null) }}
+                onClick={() => { setType(r.key); setResult(null); setDrill(null); setStaffFilter(''); setClientFilter(''); setReleaseFilter('') }}
                 className={`w-full text-left px-4 py-1.5 text-sm transition-colors ${
                   type === r.key
                     ? 'bg-accent/10 text-accent font-semibold border-r-2 border-accent'
@@ -366,96 +377,89 @@ export default function Reports() {
 
         {/* Filter bar */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
-          {usesPeriod ? (
-            <div className="flex items-end gap-4 flex-wrap">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Pay Period</label>
-                <select value={periodId || ''} onChange={e => setPeriodId(parseInt(e.target.value))} className={inputCls}>
-                  {periods.map(p => (
-                    <option key={p.id} value={p.id}>
-                      P{p.period_number}: {p.start_date} – {p.end_date}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {type === 'timesheet' && (
+          <div className="space-y-3">
+            {/* Row 1 — date / period pickers + staff + client + type */}
+            <div className="flex items-end gap-3 flex-wrap">
+              {usesPeriod ? (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Staff Filter</label>
-                  <input value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
-                    placeholder="Staff name…" className={inputCls} />
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Pay Period</label>
+                  <select value={periodId || ''} onChange={e => setPeriodId(parseInt(e.target.value))} className={INPUT_CLS}>
+                    {periods.map(p => (
+                      <option key={p.id} value={p.id}>
+                        P{p.period_number}: {p.start_date} – {p.end_date}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={INPUT_CLS} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={INPUT_CLS} />
+                  </div>
+                </>
               )}
-              {activeMeta?.hasReleaseFilter && (
+
+              {/* Staff dropdown — only for reports that use it */}
+              {activeMeta?.hasStaffFilter && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Release Status</label>
-                  <select value={releaseFilter} onChange={e => setReleaseFilter(e.target.value)} className={inputCls}>
-                    <option value="">All Entries</option>
-                    <option value="released">Released Only</option>
-                    <option value="unreleased">Unreleased Only</option>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Staff</label>
+                  <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className={INPUT_CLS}>
+                    <option value="">All Staff</option>
+                    {staffList.map(u => (
+                      <option key={u.id} value={u.full_name}>{u.full_name}</option>
+                    ))}
                   </select>
                 </div>
               )}
-              <div className="flex gap-2 ml-auto">
-                <button onClick={run} disabled={loading || !periodId}
-                  className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
-                  {loading ? 'Running…' : 'Run Report'}
-                </button>
-                {result?.data?.length > 0 && (
-                  <button onClick={handleExport}
-                    className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
-                    Export CSV
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls + ' w-full'} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls + ' w-full'} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Staff Filter</label>
-                  <input value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
-                    placeholder="Staff name…" className={inputCls + ' w-full'} />
-                </div>
+
+              {/* Client autocomplete — type-to-search, server-side, never loads full list */}
+              {activeMeta?.hasClientFilter && (
+                <ClientAutocomplete key={type} onChange={setClientFilter} />
+              )}
+
+              {/* Engagement type — always shown for date-range reports */}
+              {!usesPeriod && (
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Engagement Type</label>
-                  <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={inputCls + ' w-full'}>
+                  <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={INPUT_CLS}>
                     <option value="">All Types</option>
                     {ENG_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
-              </div>
+              )}
+
+              {/* Release status filter inline */}
               {activeMeta?.hasReleaseFilter && (
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-medium text-gray-500">Release Filter:</label>
-                  <select value={releaseFilter} onChange={e => setReleaseFilter(e.target.value)} className={inputCls}>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Release Status</label>
+                  <select value={releaseFilter} onChange={e => setReleaseFilter(e.target.value)} className={INPUT_CLS}>
                     <option value="">All Entries</option>
                     <option value="released">Released Only</option>
                     <option value="unreleased">Unreleased Only</option>
                   </select>
                 </div>
               )}
-              <div className="flex justify-end gap-2">
-                <button onClick={run} disabled={loading}
-                  className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
-                  {loading ? 'Running…' : 'Run Report'}
-                </button>
-                {result?.data?.length > 0 && (
-                  <button onClick={handleExport}
-                    className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
-                    Export CSV
-                  </button>
-                )}
-              </div>
             </div>
-          )}
+
+            {/* Row 2 — Run + Export */}
+            <div className="flex justify-end gap-2">
+              <button onClick={run} disabled={loading || (usesPeriod && !periodId)}
+                className="px-5 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors">
+                {loading ? 'Running…' : 'Run Report'}
+              </button>
+              {result?.data?.length > 0 && (
+                <button onClick={handleExport}
+                  className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
+                  Export CSV
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {loading && <SkeletonTable rows={6} />}
@@ -576,6 +580,124 @@ function StaffDrilldown({ staffName, startDate, endDate, onBack }) {
               </span>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Client autocomplete ────────────────────────────────────────────────────────
+// Type ≥2 chars → debounce 250ms → server-side LIKE search → pick from dropdown.
+// Uses key={reportType} in the parent so it remounts (resets) when the report changes.
+function ClientAutocomplete({ onChange }) {
+  const [query,       setQuery]       = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [selected,    setSelected]    = useState('')
+  const [open,        setOpen]        = useState(false)
+  const [busy,        setBusy]        = useState(false)
+  const timerRef     = useRef(null)
+  const containerRef = useRef(null)
+
+  // Close dropdown when clicking outside the widget
+  useEffect(() => {
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleInput = (e) => {
+    const val = e.target.value
+    setQuery(val)
+    // If user edits after a selection, clear the committed filter
+    if (selected) {
+      setSelected('')
+      onChange('')
+    }
+    clearTimeout(timerRef.current)
+    if (val.length < 2) {
+      setSuggestions([])
+      setOpen(false)
+      return
+    }
+    timerRef.current = setTimeout(async () => {
+      setBusy(true)
+      try {
+        const res = await engagementsApi.clientNames(val)
+        setSuggestions(res?.names || [])
+        setOpen(true)
+      } catch {
+        setSuggestions([])
+      } finally {
+        setBusy(false)
+      }
+    }, 250)
+  }
+
+  const handleSelect = (name) => {
+    setSelected(name)
+    setQuery(name)
+    setSuggestions([])
+    setOpen(false)
+    onChange(name)
+  }
+
+  const handleClear = () => {
+    setSelected('')
+    setQuery('')
+    setSuggestions([])
+    setOpen(false)
+    clearTimeout(timerRef.current)
+    onChange('')
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-xs font-medium text-gray-500 mb-1">Client</label>
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={handleInput}
+          onFocus={() => suggestions.length > 0 && setOpen(true)}
+          placeholder="Search clients…"
+          className={`${INPUT_CLS} pr-7 w-44`}
+          autoComplete="off"
+        />
+        {(query || selected) && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-base leading-none"
+            aria-label="Clear client filter"
+          >×</button>
+        )}
+      </div>
+      {/* Selected badge — shown while a name is committed */}
+      {selected && (
+        <p className="mt-0.5 text-[10px] text-accent font-semibold truncate max-w-44">✓ {selected}</p>
+      )}
+      {open && (
+        <div className="absolute z-50 mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+          {busy && (
+            <p className="px-3 py-2 text-xs text-gray-400 italic">Searching…</p>
+          )}
+          {!busy && suggestions.length === 0 && (
+            <p className="px-3 py-2 text-xs text-gray-400 italic">No matches</p>
+          )}
+          {!busy && suggestions.map(name => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => handleSelect(name)}
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-accent/10 hover:text-accent transition-colors"
+            >
+              {name}
+            </button>
+          ))}
         </div>
       )}
     </div>

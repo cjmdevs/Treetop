@@ -4,6 +4,7 @@ const router  = express.Router();
 const { log }                    = require('../lib/activityLogger');
 const { runBudgetCheck }         = require('../lib/automationEngine');
 const { findPeriodIdForDate }    = require('./payPeriods');
+const { autoBillReleasedEntries } = require('../lib/autoBilling');
 
 // ── GET /api/time-entries ─────────────────────────────────────────────────────
 // Filters: engagement_id, staff_member, date_from, date_to,
@@ -198,7 +199,16 @@ router.patch('/:id/status', (req, res) => {
     return res.status(403).json({ error: 'You can only update your own time entries.' });
 
   db.prepare('UPDATE time_entries SET entry_status=? WHERE id=?').run(status, req.params.id);
-  res.json(db.prepare('SELECT * FROM time_entries WHERE id = ?').get(req.params.id));
+
+  // Auto-bill when an individual entry is released
+  let autoBilling = { created: [], totalAmount: 0 };
+  if (status === 'released') {
+    const releaseDate = new Date().toISOString().split('T')[0];
+    autoBilling = autoBillReleasedEntries([parseInt(req.params.id, 10)], releaseDate);
+  }
+
+  const updatedEntry = db.prepare('SELECT * FROM time_entries WHERE id = ?').get(req.params.id);
+  res.json({ ...updatedEntry, autoBilling });
 });
 
 module.exports = router;

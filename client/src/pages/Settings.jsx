@@ -10,7 +10,8 @@ import { useAuth }               from '../context/AuthContext'
 import { useStatuses }           from '../context/StatusesContext'
 import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon, WifiIcon, CheckCircleIcon, ExclamationTriangleIcon, ClipboardDocumentIcon, KeyIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { getServerUrl, setServerUrl, testConnection, normalizeUrl } from '../config/serverConfig'
-import { inviteKeysApi } from '../api/inviteKeys'
+import { inviteKeysApi }    from '../api/inviteKeys'
+import { firmSettingsApi } from '../api/firmSettings'
 
 const FIELD_TYPES  = ['Text', 'Number', 'Date', 'Dropdown', 'Checkbox']
 const CATEGORIES   = ['Tax', 'Audit', 'Bookkeeping', 'Advisory', 'Admin', 'Other']
@@ -163,6 +164,19 @@ export default function Settings() {
   const [serverInput,  setServerInput]  = useState(getServerUrl())
   const [serverStatus, setServerStatus] = useState(null)   // null|'testing'|'ok'|'error'
   const [serverMsg,    setServerMsg]    = useState('')
+
+  // ── Firm branding ─────────────────────────────────────────────────────────
+  const [firmForm,   setFirmForm]   = useState({ firm_name: '', firm_address_block: '' })
+  const [firmSaving, setFirmSaving] = useState(false)
+
+  const loadFirm = () => firmSettingsApi.get().then(setFirmForm).catch(() => {})
+  useEffect(() => { if (tab === 'firm-branding') loadFirm() }, [tab])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveFirm = async e => {
+    e.preventDefault()
+    setFirmSaving(true)
+    try { await firmSettingsApi.update(firmForm) } finally { setFirmSaving(false) }
+  }
 
   // ── Invite keys ────────────────────────────────────────────────────────────
   const BLANK_INVITE = { username: '', full_name: '', email: '', role: 'staff' }
@@ -435,8 +449,9 @@ export default function Settings() {
       { key: 'contact-fields', label: 'Contact Fields', visible: true },
     ]},
     { label: 'Time & Billing', items: [
-      { key: 'codes', label: 'Service Codes', visible: true },
-      { key: 'rates', label: 'Staff Rates',   visible: true },
+      { key: 'codes',          label: 'Service Codes', visible: true },
+      { key: 'rates',          label: 'Staff Rates',   visible: true },
+      { key: 'firm-branding',  label: 'Firm Branding', visible: isAdmin },
     ]},
     { label: 'System / Admin', items: [
       { key: 'accounts',     label: 'User Accounts',    visible: isAdmin },
@@ -1767,6 +1782,46 @@ export default function Settings() {
             </p>
           </div>
 
+        </div>
+      )}
+
+      {/* ── Firm Branding ────────────────────────────────────────────────────── */}
+      {tab === 'firm-branding' && (
+        <div className="max-w-lg">
+          <p className="text-sm text-gray-500 mb-6">
+            This information appears in the header of every generated invoice. Leave blank to use the default app name.
+          </p>
+          <form onSubmit={saveFirm} className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+            <div>
+              <label className={labelCls}>Firm Name</label>
+              <input
+                value={firmForm.firm_name}
+                onChange={e => setFirmForm(f => ({ ...f, firm_name: e.target.value }))}
+                className={inputCls}
+                placeholder="e.g. Smith & Associates CPAs"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Address / Contact Block</label>
+              <textarea
+                rows={4}
+                value={firmForm.firm_address_block}
+                onChange={e => setFirmForm(f => ({ ...f, firm_address_block: e.target.value }))}
+                className={inputCls + ' resize-none'}
+                placeholder={'123 Main St, Suite 100\nCity, ST 00000\n(555) 000-0000\nfirm@example.com'}
+              />
+              <p className="text-xs text-gray-400 mt-1">Shown below the firm name on invoices. Separate lines with Enter.</p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={firmSaving}
+                className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+              >
+                {firmSaving ? 'Saving…' : 'Save Branding'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

@@ -12,6 +12,7 @@ import { customFieldsApi } from '../api/customFields'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ContactForm from './contacts/ContactForm'
+import { StatusBadge } from '../components/Badge'
 import { UsersIcon } from '@heroicons/react/24/outline'
 
 const STATUS_COLORS = {
@@ -747,14 +748,6 @@ function EngagementsTab({ contact }) {
   const effectiveStatus = e => e.latest_project_status || e.status
   const open = engs.filter(e => !['Complete','Cancelled'].includes(effectiveStatus(e))).length
 
-  const STATUS_COLORS_ENG = {
-    'Not Started': 'bg-gray-100 text-gray-600',
-    'In Progress':  'bg-blue-100 text-blue-700',
-    'In Review':    'bg-yellow-100 text-yellow-700',
-    'Complete':     'bg-green-100 text-green-700',
-    'Cancelled':    'bg-red-100 text-red-600',
-  }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -793,7 +786,7 @@ function EngagementsTab({ contact }) {
                   <td className="px-4 py-3 font-medium text-gray-900">{e.engagement_type}</td>
                   <td className="px-4 py-3 text-gray-500">{e.tax_year || '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS_ENG[effectiveStatus(e)] || 'bg-gray-100 text-gray-600'}`}>{effectiveStatus(e)}</span>
+                    <StatusBadge status={effectiveStatus(e)} />
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{e.due_date || '—'}</td>
                   <td className="px-4 py-3 text-right text-gray-700">{(e.actual_hours || 0).toFixed(1)}</td>

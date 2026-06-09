@@ -1,6 +1,7 @@
 const express = require('express');
 const db      = require('../db/database');
 const router  = express.Router();
+const { autoBillReleasedEntries } = require('../lib/autoBilling');
 
 // ── Helper exported for use in timeEntries.js ────────────────────────────────
 function findPeriodIdForDate(date) {
@@ -120,23 +121,60 @@ router.get('/:id/staff-summary', (req, res) => {
 });
 
 // ── POST /api/pay-periods/:id/release-user/:userId ───────────────────────────
+// Supports two modes:
+//   Period mode  (default): req.params.id = pay period ID → filter by pay_period_id
+//   Date-range mode: body contains { startDate, endDate } → filter by te.date; pass id=0
+// Both modes are admin-only and run auto-billing on the newly-released entries.
 router.post('/:id/release-user/:userId', (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
-  const period = db.prepare('SELECT id FROM pay_periods WHERE id = ?').get(req.params.id);
-  if (!period) return res.status(404).json({ error: 'Pay period not found' });
+  const { startDate, endDate } = req.body || {};
+  const isDateRange = !!(startDate && endDate);
 
-  db.prepare(`
-    INSERT INTO pay_period_user_status (pay_period_id, user_id, status, released_at)
-    VALUES (?, ?, 'Released', ?)
-    ON CONFLICT(pay_period_id, user_id)
-    DO UPDATE SET status='Released', released_at=excluded.released_at
-  `).run(req.params.id, req.params.userId, new Date().toISOString());
+  if (!isDateRange) {
+    // Period mode: validate the period exists
+    const period = db.prepare('SELECT id FROM pay_periods WHERE id = ?').get(req.params.id);
+    if (!period) return res.status(404).json({ error: 'Pay period not found' });
+  }
+
+  // Capture entry IDs BEFORE releasing so auto-billing gets exactly the entries that changed
+  const toRelease = isDateRange
+    ? db.prepare(
+        "SELECT id FROM time_entries WHERE date BETWEEN ? AND ? AND user_id = ? AND entry_status IN ('draft','submitted')"
+      ).all(startDate, endDate, req.params.userId)
+    : db.prepare(
+        "SELECT id FROM time_entries WHERE pay_period_id = ? AND user_id = ? AND entry_status IN ('draft','submitted')"
+      ).all(req.params.id, req.params.userId);
+
+  // Set entry_status = 'released' for the matched entries
+  if (isDateRange) {
+    db.prepare(
+      "UPDATE time_entries SET entry_status='released' WHERE date BETWEEN ? AND ? AND user_id = ? AND entry_status IN ('draft','submitted')"
+    ).run(startDate, endDate, req.params.userId);
+    // Date-range releases span multiple periods; skip per-period user-status update
+  } else {
+    db.prepare(
+      "UPDATE time_entries SET entry_status='released' WHERE pay_period_id = ? AND user_id = ? AND entry_status IN ('draft','submitted')"
+    ).run(req.params.id, req.params.userId);
+    // Mark per-user release status in the period table (period mode only)
+    db.prepare(`
+      INSERT INTO pay_period_user_status (pay_period_id, user_id, status, released_at)
+      VALUES (?, ?, 'Released', ?)
+      ON CONFLICT(pay_period_id, user_id)
+      DO UPDATE SET status='Released', released_at=excluded.released_at
+    `).run(req.params.id, req.params.userId, new Date().toISOString());
+  }
+
+  // Auto-bill newly released entries (double-bill guard inside autoBillReleasedEntries)
+  const releaseDate = new Date().toISOString().split('T')[0];
+  const autoBilling = autoBillReleasedEntries(toRelease.map(e => e.id), releaseDate);
 
   res.json({
-    pay_period_id: parseInt(req.params.id),
-    user_id: parseInt(req.params.userId),
-    status: 'Released',
+    pay_period_id: isDateRange ? null : parseInt(req.params.id),
+    user_id:       parseInt(req.params.userId),
+    status:        'Released',
+    updated:       toRelease.length,
+    autoBilling,
   });
 });
 
@@ -271,6 +309,8 @@ router.post('/:id/submit', (req, res) => {
 // Optional body: { staff_member, released_by }
 // Auto-updates period status to Released when all entries are released.
 // Admin/manager only — staff cannot approve time.
+// Side effect: auto-creates billing_records for newly-released billable entries
+// (double-bill guard: only entries with billing_record_id IS NULL are swept).
 router.post('/:id/release', (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'manager')
     return res.status(403).json({ error: 'Admin or manager access required.' });
@@ -278,6 +318,12 @@ router.post('/:id/release', (req, res) => {
   const { staff_member, released_by } = req.body || {};
   const period = db.prepare('SELECT * FROM pay_periods WHERE id = ?').get(req.params.id);
   if (!period) return res.status(404).json({ error: 'Pay period not found' });
+
+  // Capture IDs BEFORE the UPDATE so we know exactly which entries were just released
+  let selSql  = "SELECT id FROM time_entries WHERE pay_period_id=? AND entry_status IN ('draft','submitted')";
+  const selArgs = [period.id];
+  if (staff_member) { selSql += ' AND staff_member=?'; selArgs.push(staff_member); }
+  const toRelease = db.prepare(selSql).all(...selArgs);
 
   let sql    = "UPDATE time_entries SET entry_status='released' WHERE pay_period_id=? AND entry_status IN ('draft','submitted')";
   const args = [period.id];
@@ -295,7 +341,11 @@ router.post('/:id/release', (req, res) => {
       .run(released_by || 'Manager', new Date().toISOString(), period.id);
   }
 
-  res.json({ updated: r.changes, period_id: period.id, staff_member: staff_member || null });
+  // Auto-bill newly-released entries
+  const releaseDate  = new Date().toISOString().split('T')[0];
+  const autoBilling  = autoBillReleasedEntries(toRelease.map(e => e.id), releaseDate);
+
+  res.json({ updated: r.changes, period_id: period.id, staff_member: staff_member || null, autoBilling });
 });
 
 module.exports        = router;

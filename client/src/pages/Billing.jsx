@@ -16,9 +16,10 @@ export default function Billing() {
   const [summary, setSummary] = useState(null)
   const [engagements, setEngagements] = useState([])
   const [form, setForm] = useState(BLANK)
-  const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [generatingId, setGeneratingId] = useState(null)
+  const [showForm,      setShowForm]      = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [generatingId,  setGeneratingId]  = useState(null)
+  const [clientSearch,  setClientSearch]  = useState('')
 
   const load = () => {
     billingApi.list().then(setRecords)
@@ -66,6 +67,10 @@ export default function Billing() {
     })
     load()
   }
+
+  const filteredRecords = clientSearch
+    ? records.filter(r => r.client_name?.toLowerCase().includes(clientSearch.toLowerCase()))
+    : records
 
   const inputCls =
     'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent'
@@ -181,6 +186,19 @@ export default function Billing() {
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-400">
+            {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
+            {clientSearch ? ` matching "${clientSearch}"` : ''}
+          </span>
+          <input
+            type="search"
+            value={clientSearch}
+            onChange={e => setClientSearch(e.target.value)}
+            placeholder="Filter by client…"
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr className="text-left text-gray-500">
@@ -190,7 +208,7 @@ export default function Billing() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {records.map(r => (
+            {filteredRecords.map(r => (
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-5 py-3 font-medium text-gray-900">{r.client_name}</td>
                 <td className="px-5 py-3 text-gray-500">{r.engagement_type}</td>
@@ -223,10 +241,10 @@ export default function Billing() {
                 </td>
               </tr>
             ))}
-            {records.length === 0 && (
+            {filteredRecords.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-5 py-12 text-center text-gray-400">
-                  No billing records yet.
+                  {clientSearch ? `No records matching "${clientSearch}".` : 'No billing records yet.'}
                 </td>
               </tr>
             )}

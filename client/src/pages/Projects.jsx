@@ -629,21 +629,6 @@ export default function Projects() {
       if (params.client_name) { delete params.due_from; delete params.due_to }
       // When showing all related entities, also widen to all years
       if (showRelated) { delete params.due_from; delete params.due_to }
-      // Staff: fetch by each of their roles and merge
-      if (user?.role === 'staff') {
-        const hasRoleFilter = filters.preparer || filters.reviewer || filters.in_charge
-        if (!hasRoleFilter) {
-          const [p, r, i] = await Promise.all([
-            projectsApi.list({ ...params, preparer: user.full_name }),
-            projectsApi.list({ ...params, reviewer: user.full_name }),
-            projectsApi.list({ ...params, in_charge: user.full_name }),
-          ])
-          const seen = new Set()
-          const merged = [...p, ...r, ...i].filter(pr => { if (seen.has(pr.id)) return false; seen.add(pr.id); return true })
-          setProjects(attachMilestones(merged))
-          return
-        }
-      }
       const data = await projectsApi.list(params)
       setProjects(attachMilestones(data))
     } catch {

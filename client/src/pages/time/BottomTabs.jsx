@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { timeSummaryApi } from '../../api/timeSummary'
 import { releasesApi }    from '../../api/releases'
+import { payPeriodsApi }  from '../../api/payPeriods'
+import { usersApi }       from '../../api/users'
 import { useAuth }        from '../../context/AuthContext'
 import { useToast }       from '../../context/ToastContext'
 
@@ -234,6 +236,41 @@ function TimeReleaseTab() {
   const [previewing, setPreviewing] = useState(false)
   const [releasing,  setReleasing]  = useState(false)
 
+  // ── Admin: release a specific user's time by date range ─────────────────
+  const [staffUsers,      setStaffUsers]      = useState([])
+  const [adminUserId,     setAdminUserId]      = useState('')
+  const [adminStartDate,  setAdminStartDate]  = useState(monthStart)
+  const [adminEndDate,    setAdminEndDate]    = useState(today)
+  const [adminReleasing,  setAdminReleasing]  = useState(false)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    usersApi.list().then(us => setStaffUsers((us || []).filter(u => u.active)))
+  }, [isAdmin])
+
+  const handleAdminRelease = async () => {
+    if (!adminUserId || !adminStartDate || !adminEndDate) return
+    const targetUser = staffUsers.find(u => String(u.id) === String(adminUserId))
+    if (!confirm(`Release time for ${targetUser?.full_name} from ${adminStartDate} to ${adminEndDate}?`)) return
+    setAdminReleasing(true)
+    try {
+      const result  = await payPeriodsApi.releaseUser(0, adminUserId, { startDate: adminStartDate, endDate: adminEndDate })
+      const billing = result?.autoBilling
+      if (billing?.created?.length > 0) {
+        const count = billing.created.length
+        const total = billing.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        toast.success(`Released ${result.updated} entr${result.updated !== 1 ? 'ies' : 'y'} for ${targetUser?.full_name} — ${count} billing record${count !== 1 ? 's' : ''} created ($${total})`)
+      } else {
+        toast.success(`Released ${result.updated} entr${result.updated !== 1 ? 'ies' : 'y'} for ${targetUser?.full_name} — no billable entries.`)
+      }
+      loadReleases()
+    } catch {
+      toast.error('Release failed.')
+    } finally {
+      setAdminReleasing(false)
+    }
+  }
+
   const loadReleases = () => {
     setLoading(true)
     releasesApi.list()
@@ -262,8 +299,15 @@ function TimeReleaseTab() {
     if (!confirm(`Release ${Number(preview.total_hours).toFixed(2)}h for ${startDate} – ${endDate}?`)) return
     setReleasing(true)
     try {
-      await releasesApi.create(startDate, endDate)
-      toast.success('Time released.')
+      const result   = await releasesApi.create(startDate, endDate)
+      const billing  = result?.autoBilling
+      if (billing?.created?.length > 0) {
+        const count = billing.created.length
+        const total = billing.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        toast.success(`Time released — ${count} billing record${count !== 1 ? 's' : ''} created totaling $${total}`)
+      } else {
+        toast.success('Time released — no billable entries, no billing records created.')
+      }
       setPreview(null)
       loadReleases()
     } catch {
@@ -288,6 +332,54 @@ function TimeReleaseTab() {
 
   return (
     <div className="py-2 space-y-4">
+
+      {/* ── Admin: Release Staff Time by Date Range ─────────────────────────── */}
+      {isAdmin && (
+        <div className="bg-accent-light border border-accent/20 rounded-lg px-4 py-3">
+          <p className="text-xs font-semibold text-accent uppercase tracking-wide mb-2">Admin — Release Staff Time</p>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Staff Member</label>
+              <select
+                value={adminUserId}
+                onChange={e => setAdminUserId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">Select staff…</option>
+                {staffUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={adminStartDate}
+                onChange={e => setAdminStartDate(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
+              <input
+                type="date"
+                value={adminEndDate}
+                onChange={e => setAdminEndDate(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <button
+              onClick={handleAdminRelease}
+              disabled={adminReleasing || !adminUserId || !adminStartDate || !adminEndDate}
+              className="px-4 py-1.5 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+            >
+              {adminReleasing ? 'Releasing…' : 'Release Time'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Date range + preview form */}
       <div className="flex items-end gap-3 flex-wrap">
         <div>

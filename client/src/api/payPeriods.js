@@ -17,6 +17,7 @@ export const payPeriodsApi = {
   // Admin endpoints (Part 2)
   mySummary:       ()              => api.get('/pay-periods/my-summary'),
   staffSummary:    (id)            => api.get(`/pay-periods/${id}/staff-summary`),
-  releaseUser:     (id, userId)    => api.post(`/pay-periods/${id}/release-user/${userId}`, {}),
+  // id = pay-period id for period mode, or 0 for date-range mode (pass startDate/endDate in body)
+  releaseUser:     (id, userId, body = {}) => api.post(`/pay-periods/${id}/release-user/${userId}`, body),
   bulkRelease:     (id)            => api.post(`/pay-periods/${id}/bulk-release`, {}),
 }

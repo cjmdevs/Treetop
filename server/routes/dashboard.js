@@ -6,37 +6,52 @@ const { runDueDateChecks } = require('../lib/automationEngine');
 router.get('/', (req, res) => {
   // Non-admin: return personal data only — no firm-wide financials or other users' data
   if (req.user.role !== 'admin') {
-    const staffName  = req.user.full_name;
-    const today      = new Date().toISOString().split('T')[0];
-    const monthStart = today.slice(0, 8) + '01';
+    try {
+      const staffName  = req.user.full_name || '';
+      const today      = new Date().toISOString().split('T')[0];
+      const monthStart = today.slice(0, 8) + '01';
 
-    const { total: myHoursThisMonth } = db.prepare(`
-      SELECT COALESCE(SUM(hours), 0) AS total
-      FROM time_entries
-      WHERE staff_member = ? AND date >= ? AND date <= ?
-    `).get(staffName, monthStart, today);
+      const hoursRow = db.prepare(`
+        SELECT COALESCE(SUM(hours), 0) AS total
+        FROM time_entries
+        WHERE staff_member = ? AND date >= ? AND date <= ?
+      `).get(staffName, monthStart, today);
+      const myHoursThisMonth = Number(hoursRow?.total ?? 0);
 
-    const myRecentActivity = db.prepare(`
-      SELECT * FROM activity_log
-      WHERE acted_by_name = ?
-      ORDER BY created_at DESC LIMIT 10
-    `).all(staffName);
+      // Guard: activity_log may not have acted_by_name column on old DBs
+      let myRecentActivity = [];
+      try {
+        myRecentActivity = db.prepare(`
+          SELECT * FROM activity_log
+          WHERE acted_by_name = ?
+          ORDER BY created_at DESC LIMIT 10
+        `).all(staffName);
+      } catch { /* migration not yet run — return empty */ }
 
-    const myRecentProjects = db.prepare(`
-      SELECT p.*, e.engagement_type, e.recurrence_frequency
-      FROM projects p
-      JOIN engagements e ON e.id = p.engagement_id
-      WHERE (p.primary_partner = ? OR p.manager = ? OR p.preparer = ? OR p.reviewer = ? OR p.in_charge = ?)
-        AND p.status NOT IN ('Completed','Delivered')
-      ORDER BY p.updated_at DESC LIMIT 6
-    `).all(staffName, staffName, staffName, staffName, staffName);
+      const myRecentProjects = db.prepare(`
+        SELECT p.*, e.engagement_type, e.recurrence_frequency
+        FROM projects p
+        JOIN engagements e ON e.id = p.engagement_id
+        WHERE (p.primary_partner = ? OR p.manager = ? OR p.preparer = ? OR p.reviewer = ? OR p.in_charge = ?)
+          AND p.status NOT IN ('Completed','Delivered')
+        ORDER BY p.updated_at DESC LIMIT 6
+      `).all(staffName, staffName, staffName, staffName, staffName);
 
-    return res.json({
-      isPersonal: true,
-      myHoursThisMonth,
-      myRecentActivity,
-      myRecentProjects,
-    });
+      return res.json({
+        isPersonal: true,
+        myHoursThisMonth,
+        myRecentActivity,
+        myRecentProjects,
+      });
+    } catch (err) {
+      // Never let a personal-stats failure crash to 500 — return safe defaults
+      return res.json({
+        isPersonal: true,
+        myHoursThisMonth: 0,
+        myRecentActivity: [],
+        myRecentProjects: [],
+      });
+    }
   }
 
   // Admin: full firm overview
@@ -52,8 +67,10 @@ router.get('/', (req, res) => {
     "SELECT COUNT(*) AS count FROM engagements WHERE due_date BETWEEN ? AND ? AND status != 'Complete'"
   ).get(today, nextWeek);
 
+  // Unbilled Hours = billable hours NOT yet rolled into any billing record
+  // (billing_record_id IS NULL means no auto or manual record has claimed these hours)
   const { total: unbilledHours } = db.prepare(
-    'SELECT COALESCE(SUM(hours), 0) AS total FROM time_entries WHERE billable = 1'
+    'SELECT COALESCE(SUM(hours), 0) AS total FROM time_entries WHERE billable = 1 AND billing_record_id IS NULL'
   ).get();
 
   const { total: unbilledAmount } = db.prepare(
@@ -87,7 +104,7 @@ router.get('/', (req, res) => {
     const days = Math.floor((new Date() - refDate) / 86400000);
     if (days <= 30)      arBuckets.current    += r.invoice_amount;
     else if (days <= 60) arBuckets.days31_60  += r.invoice_amount;
-    else if (days <= 90) arBuckets.days61_60  += r.invoice_amount;
+    else if (days <= 90) arBuckets.days61_90  += r.invoice_amount;
     else                 arBuckets.days90plus += r.invoice_amount;
   });
 

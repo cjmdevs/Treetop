@@ -10,8 +10,10 @@ function dateRange(req) {
 }
 
 router.get('/', (req, res) => {
-  const { type, staff, engagementType, releaseFilter } = req.query;
+  const { type, staff, engagementType, releaseFilter, client } = req.query;
   const { start, end } = dateRange(req);
+  // client filter: case-insensitive partial match — wrap in % for LIKE queries
+  const clientLike = client ? `%${client}%` : null;
 
   const hasInvoiceStatus = db.pragma('table_info(invoices)').some(col => col.name === 'status');
 
@@ -40,9 +42,10 @@ router.get('/', (req, res) => {
         FROM time_entries
         WHERE date BETWEEN ? AND ?
           ${staff ? 'AND staff_member = ?' : ''}
+          ${clientLike ? 'AND EXISTS (SELECT 1 FROM engagements eg WHERE eg.id = time_entries.engagement_id AND LOWER(eg.client_name) LIKE LOWER(?))' : ''}
           ${rcMain}
         GROUP BY staff_member ORDER BY total_hours DESC
-      `).all(start, end, ...(staff ? [staff] : []));
+      `).all(start, end, ...(staff ? [staff] : []), ...(clientLike ? [clientLike] : []));
 
       const weeks = Math.max(1, Math.ceil((new Date(end)-new Date(start))/(7*86400000)));
       result = rows.map(r => ({
@@ -66,12 +69,14 @@ router.get('/', (req, res) => {
           COUNT(DISTINCT te.engagement_id) as engagement_count
         FROM time_entries te
         LEFT JOIN service_codes sc ON sc.code = te.service_code
+        LEFT JOIN engagements te_eng ON te_eng.id = te.engagement_id
         WHERE te.date BETWEEN ? AND ?
           ${staff ? 'AND te.staff_member = ?' : ''}
+          ${clientLike ? 'AND LOWER(te_eng.client_name) LIKE LOWER(?)' : ''}
           ${rcAlias}
         GROUP BY te.service_code
         ORDER BY total_hours DESC
-      `).all(start, end, ...(staff ? [staff] : []));
+      `).all(start, end, ...(staff ? [staff] : []), ...(clientLike ? [clientLike] : []));
       break;
     }
 
@@ -123,8 +128,9 @@ router.get('/', (req, res) => {
         LEFT JOIN engagements e ON e.id = i.engagement_id
         WHERE i.invoice_date BETWEEN ? AND ?
           ${engagementType ? 'AND e.engagement_type = ?' : ''}
+          ${clientLike ? 'AND LOWER(i.client_name) LIKE LOWER(?)' : ''}
         ORDER BY i.invoice_date DESC
-      `).all(start, end, ...(engagementType ? [engagementType] : []));
+      `).all(start, end, ...(engagementType ? [engagementType] : []), ...(clientLike ? [clientLike] : []));
       break;
     }
 
@@ -135,8 +141,9 @@ router.get('/', (req, res) => {
           COALESCE(reference_number, '—') as reference_number
         FROM payments
         WHERE payment_date BETWEEN ? AND ?
+          ${clientLike ? 'AND LOWER(client_name) LIKE LOWER(?)' : ''}
         ORDER BY payment_date DESC
-      `).all(start, end);
+      `).all(start, end, ...(clientLike ? [clientLike] : []));
       break;
     }
 
@@ -159,6 +166,7 @@ router.get('/', (req, res) => {
         clientMap[r.client_name].total   += r.invoice_amount;
       });
       result = Object.values(clientMap).sort((a, b) => b.total - a.total);
+      if (client) result = result.filter(r => r.client_name.toLowerCase().includes(client.toLowerCase()));
       break;
     }
 
@@ -170,10 +178,11 @@ router.get('/', (req, res) => {
           COALESCE(SUM(CASE WHEN br.status IN ('Unbilled','Invoiced') THEN br.invoice_amount ELSE 0 END), 0) as outstanding
         FROM engagements e
         LEFT JOIN billing_records br ON br.engagement_id = e.id
+        ${clientLike ? 'WHERE LOWER(e.client_name) LIKE LOWER(?)' : ''}
         GROUP BY e.client_name
         HAVING total_billed > 0
         ORDER BY outstanding DESC
-      `).all();
+      `).all(...(clientLike ? [clientLike] : []));
       break;
     }
 
@@ -199,8 +208,9 @@ router.get('/', (req, res) => {
         WHERE (e.budgeted_hours IS NOT NULL OR e.budgeted_amount IS NOT NULL)
           ${staff ? 'AND e.assigned_staff = ?' : ''}
           ${engagementType ? 'AND e.engagement_type = ?' : ''}
+          ${clientLike ? 'AND LOWER(e.client_name) LIKE LOWER(?)' : ''}
         GROUP BY e.id
-      `).all(...(staff ? [staff] : []), ...(engagementType ? [engagementType] : []));
+      `).all(...(staff ? [staff] : []), ...(engagementType ? [engagementType] : []), ...(clientLike ? [clientLike] : []));
       result = result.map(r => ({
         ...r,
         hours_variance:  r.budgeted_hours   ? r.actual_hours  - r.budgeted_hours   : null,
@@ -219,8 +229,9 @@ router.get('/', (req, res) => {
         WHERE due_date < ? AND status NOT IN ('Complete','On Hold')
           ${staff ? 'AND assigned_staff = ?' : ''}
           ${engagementType ? 'AND engagement_type = ?' : ''}
+          ${clientLike ? 'AND LOWER(client_name) LIKE LOWER(?)' : ''}
         ORDER BY due_date ASC
-      `).all(today, ...(staff ? [staff] : []), ...(engagementType ? [engagementType] : []));
+      `).all(today, ...(staff ? [staff] : []), ...(engagementType ? [engagementType] : []), ...(clientLike ? [clientLike] : []));
       break;
     }
 

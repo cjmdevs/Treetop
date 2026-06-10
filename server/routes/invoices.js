@@ -2,6 +2,15 @@ const express = require('express');
 const db = require('../db/database');
 const router = express.Router();
 
+function requireManagerOrAdmin(req, res, next) {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Manager or admin access required.' });
+  next();
+}
+
+// Entire invoices module is manager+ — staff has no Billing access
+router.use(requireManagerOrAdmin);
+
 function nextInvoiceNumber() {
   const year = new Date().getFullYear();
   const last = db.prepare(
@@ -31,9 +40,15 @@ router.post('/generate/:billingRecordId', (req, res) => {
   `).get(req.params.billingRecordId);
   if (!br) return res.status(404).json({ error: 'Billing record not found' });
 
+  // Only pull entries actually stamped to THIS billing record (billing_record_id = br.id).
+  // Using engagement_id + billable=1 would wrongly include entries from OTHER billing records
+  // (e.g. earlier auto-billed records for the same engagement), causing line items that don't
+  // sum to this record's invoice_amount.
+  // Legacy records created before entry-stamping existed will have no linked entries → falls
+  // through to the catch-all single-line-item else branch below (no wrong data shown).
   const timeEntries = db.prepare(
-    'SELECT * FROM time_entries WHERE engagement_id = ? AND billable = 1 ORDER BY date ASC'
-  ).all(br.engagement_id);
+    'SELECT * FROM time_entries WHERE billing_record_id = ? ORDER BY date ASC'
+  ).all(br.id);
 
   const tax_rate  = parseFloat(req.body.tax_rate || 0);
   const subtotal  = br.invoice_amount;

@@ -131,10 +131,11 @@ router.post('/:id/release-user/:userId', (req, res) => {
   const { startDate, endDate } = req.body || {};
   const isDateRange = !!(startDate && endDate);
 
+  let periodRow = null;
   if (!isDateRange) {
-    // Period mode: validate the period exists
-    const period = db.prepare('SELECT id FROM pay_periods WHERE id = ?').get(req.params.id);
-    if (!period) return res.status(404).json({ error: 'Pay period not found' });
+    // Period mode: validate the period exists and capture dates for time_releases
+    periodRow = db.prepare('SELECT id, start_date, end_date FROM pay_periods WHERE id = ?').get(req.params.id);
+    if (!periodRow) return res.status(404).json({ error: 'Pay period not found' });
   }
 
   // Capture entry IDs BEFORE releasing so auto-billing gets exactly the entries that changed
@@ -168,6 +169,27 @@ router.post('/:id/release-user/:userId', (req, res) => {
   // Auto-bill newly released entries (double-bill guard inside autoBillReleasedEntries)
   const releaseDate = new Date().toISOString().split('T')[0];
   const autoBilling = autoBillReleasedEntries(toRelease.map(e => e.id), releaseDate);
+
+  // Write a time_releases record so admin-forced releases appear in the release
+  // history table (GET /api/releases).  Only written when entries were actually
+  // transitioned — skip if nothing changed (idempotent re-release).
+  if (toRelease.length > 0) {
+    const relStart = isDateRange ? startDate : periodRow.start_date;
+    const relEnd   = isDateRange ? endDate   : periodRow.end_date;
+
+    const entryPlaceholders = toRelease.map(() => '?').join(',');
+    const relTotals = db.prepare(`
+      SELECT
+        COALESCE(SUM(hours), 0) AS total_hours,
+        COALESCE(SUM(CASE WHEN billable=1 THEN hours * COALESCE(billing_rate,0) ELSE 0 END), 0) AS total_amount
+      FROM time_entries WHERE id IN (${entryPlaceholders})
+    `).get(...toRelease.map(e => e.id));
+
+    db.prepare(`
+      INSERT INTO time_releases (user_id, start_date, end_date, total_hours, total_amount)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(parseInt(req.params.userId), relStart, relEnd, relTotals.total_hours, relTotals.total_amount);
+  }
 
   res.json({
     pay_period_id: isDateRange ? null : parseInt(req.params.id),

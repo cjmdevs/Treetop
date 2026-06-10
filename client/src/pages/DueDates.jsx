@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '../api/dashboard'
+import { dueDatesApi }  from '../api/dueDates'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const TODAY = new Date().toISOString().split('T')[0]
@@ -100,7 +101,7 @@ export default function DueDates() {
 
   useEffect(() => {
     dashboardApi.stats().then(d => setData(d))
-    fetch('/api/due-dates/tax-deadlines').then(r => r.json()).then(setTaxDl)
+    dueDatesApi.taxDeadlines().then(setTaxDl).catch(() => setTaxDl([]))
   }, [])
 
   if (!data) return <div className="p-8 text-gray-400">Loading...</div>

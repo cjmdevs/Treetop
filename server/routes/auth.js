@@ -139,4 +139,36 @@ router.post('/redeem', (req, res) => {
   res.json(issueToken(user))
 })
 
+// ── POST /api/auth/redeem-reset ───────────────────────────────────────────────
+// Public — redeem a single-use password-reset key to update the user's password.
+router.post('/redeem-reset', (req, res) => {
+  const { key, newPassword } = req.body || {}
+  if (!key) return res.status(400).json({ error: 'Reset key is required.' })
+
+  const pwError = validatePassword(newPassword)
+  if (pwError) return res.status(400).json({ error: pwError })
+
+  const keyHash  = hashToken(key)
+  const resetKey = db.prepare('SELECT * FROM password_reset_keys WHERE key_hash = ?').get(keyHash)
+
+  if (!resetKey)
+    return res.status(400).json({ error: 'Reset key not found.' })
+  if (resetKey.status === 'redeemed')
+    return res.status(400).json({ error: 'This reset key has already been used.' })
+  if (resetKey.status === 'revoked')
+    return res.status(400).json({ error: 'This reset key has been revoked.' })
+
+  const user = db.prepare('SELECT id FROM users WHERE id = ? AND active = 1').get(resetKey.user_id)
+  if (!user) return res.status(400).json({ error: 'Target user not found or is inactive.' })
+
+  const hashed = bcrypt.hashSync(newPassword, 10)
+  db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashed, resetKey.user_id)
+
+  db.prepare(`
+    UPDATE password_reset_keys SET status = 'redeemed', redeemed_at = datetime('now') WHERE id = ?
+  `).run(resetKey.id)
+
+  res.json({ ok: true, message: 'Password updated. You can now log in with your new password.' })
+})
+
 module.exports = router

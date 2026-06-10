@@ -2,6 +2,15 @@ const express = require('express');
 const db      = require('../db/database');
 const router  = express.Router();
 
+function requireManagerOrAdmin(req, res, next) {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Manager or admin access required.' });
+  next();
+}
+
+// Staff rates are sensitive pay data — manager+ only (Settings module)
+router.use(requireManagerOrAdmin);
+
 // ── GET /api/staff-rates ─────────────────────────────────────────────────────
 // Optional ?staff_member= filter; returns all history, newest-first per member.
 router.get('/', (req, res) => {

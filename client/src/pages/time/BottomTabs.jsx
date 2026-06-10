@@ -223,7 +223,7 @@ function PeriodSummaryTab({ period }) {
 // ── Time Release ──────────────────────────────────────────────────────────────
 function TimeReleaseTab() {
   const { user, isAdmin } = useAuth()
-  const { toast }         = useToast()
+  const toast             = useToast()
 
   const today      = new Date().toISOString().split('T')[0]
   const monthStart = today.slice(0, 8) + '01'
@@ -414,7 +414,7 @@ function TimeReleaseTab() {
             : 'bg-green-50 border border-green-200'
         }`}>
           {preview.entry_count === 0 ? (
-            <p>No entries found for this date range.</p>
+            <p>No unreleased entries found for this date range.</p>
           ) : (
             <div className="flex items-center gap-6 flex-wrap">
               <span className="text-green-800 font-medium">{preview.entry_count} entries</span>

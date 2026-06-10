@@ -29,8 +29,9 @@ export default function TimeTracking() {
   const [serviceCodes, setCodes]       = useState([])
   const [entries,      setEntries]     = useState([])
 
-  // Prefill from timer stop
-  const [prefill, setPrefill] = useState(null)
+  // Prefill from timer stop; editing entry from DailyGrid edit button
+  const [prefill,       setPrefill]       = useState(null)
+  const [editingEntry,  setEditingEntry]  = useState(null)
   useEffect(() => {
     if (location.state?.prefill) {
       setPrefill(location.state.prefill)
@@ -117,9 +118,11 @@ export default function TimeTracking() {
         {view === 'daily' && (
           <EntryForm
             prefill={prefill}
+            editing={editingEntry}
             engagements={engagements}
             serviceCodes={serviceCodes}
-            onSaved={() => { setPrefill(null); loadEntries() }}
+            onSaved={() => { setPrefill(null); setEditingEntry(null); loadEntries() }}
+            onCancel={() => setEditingEntry(null)}
           />
         )}
 
@@ -140,6 +143,7 @@ export default function TimeTracking() {
               selectedDate={selectedDate}
               onDateChange={setSelDate}
               onRefresh={loadEntries}
+              onEdit={setEditingEntry}
               serviceCodes={serviceCodes}
             />
           </div>

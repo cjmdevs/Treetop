@@ -25,24 +25,38 @@ const db = require('../db/database');
  * @returns {{ created: Array<{engagement_id, client_name, count, amount, billing_record_id}>, totalAmount: number }}
  */
 function autoBillReleasedEntries(entryIds, releaseDate) {
-  if (!entryIds?.length) return { created: [], totalAmount: 0 };
+  if (!entryIds?.length) return { created: [], totalAmount: 0, skipped: [] };
 
-  // Only billable entries not yet linked to a billing record
   const placeholders = entryIds.map(() => '?').join(',');
+
+  // Billable, unstamped, with a positive rate — these get auto-billed
   const eligible = db.prepare(`
     SELECT te.id,
            te.engagement_id,
            te.hours,
-           COALESCE(te.billing_rate, 0) AS billing_rate,
+           te.billing_rate,
            e.client_name
     FROM   time_entries te
     JOIN   engagements  e  ON e.id = te.engagement_id
     WHERE  te.id IN (${placeholders})
-      AND  te.billable          = 1
-      AND  te.billing_record_id IS NULL
+      AND  te.billable             = 1
+      AND  te.billing_record_id   IS NULL
+      AND  COALESCE(te.billing_rate, 0) > 0
   `).all(...entryIds);
 
-  if (!eligible.length) return { created: [], totalAmount: 0 };
+  // Billable, unstamped, but NULL/zero rate — excluded to prevent silent $0 billing.
+  // Left unstamped so they remain billable once a rate is assigned.
+  const noRateRows = db.prepare(`
+    SELECT te.id, te.engagement_id, te.hours
+    FROM   time_entries te
+    WHERE  te.id IN (${placeholders})
+      AND  te.billable             = 1
+      AND  te.billing_record_id   IS NULL
+      AND  (te.billing_rate IS NULL OR te.billing_rate = 0)
+  `).all(...entryIds);
+  const skipped = noRateRows.map(e => ({ id: e.id, engagement_id: e.engagement_id, hours: e.hours }));
+
+  if (!eligible.length) return { created: [], totalAmount: 0, skipped };
 
   // Group by engagement_id
   const groups = new Map();
@@ -88,7 +102,7 @@ function autoBillReleasedEntries(entryIds, releaseDate) {
   })();
 
   const totalAmount = created.reduce((sum, c) => sum + c.amount, 0);
-  return { created, totalAmount };
+  return { created, totalAmount, skipped };
 }
 
 /**

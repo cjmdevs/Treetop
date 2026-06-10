@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { StopIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon } from '@heroicons/react/24/solid'
+import { StopIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon, PauseIcon, PlayIcon } from '@heroicons/react/24/solid'
 import { useTimer } from '../context/TimerContext'
 import { engagementsApi } from '../api/engagements'
 
@@ -43,10 +43,12 @@ function NewTimerModal({ onStart, onClose }) {
 }
 
 export default function TimerPanel() {
-  const { timers, startTimer, stopTimer, getTimerElapsed, fmt } = useTimer()
+  const { timers, startTimer, pauseTimer, stopTimer, getTimerElapsed, fmt } = useTimer()
   const [collapsed, setCollapsed] = useState(false)
   const [showNew, setShowNew]     = useState(false)
   const navigate                  = useNavigate()
+
+  const runningCount = timers.filter(t => t.status === 'running').length
 
   if (timers.length === 0 && !showNew) return (
     <button
@@ -65,6 +67,14 @@ export default function TimerPanel() {
     })
   }
 
+  const handleToggle = timer => {
+    if (timer.status === 'running') {
+      pauseTimer(timer.engagementId)
+    } else {
+      startTimer(timer.engagementId, timer.engagementLabel)
+    }
+  }
+
   return (
     <div
       className="fixed bottom-6 right-6 z-50 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
@@ -76,14 +86,16 @@ export default function TimerPanel() {
         className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-900 text-white hover:bg-gray-800 transition-colors"
       >
         <div className="flex items-center gap-2">
-          {timers.length > 0 && (
+          {runningCount > 0 && (
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
             </span>
           )}
           <span className="text-sm font-semibold tracking-tight">
-            {timers.length > 0 ? `${timers.length} Timer${timers.length > 1 ? 's' : ''} Running` : 'New Timer'}
+            {timers.length > 0
+              ? `${timers.length} Timer${timers.length > 1 ? 's' : ''} · ${runningCount} Running`
+              : 'New Timer'}
           </span>
         </div>
         {collapsed
@@ -96,22 +108,38 @@ export default function TimerPanel() {
         <>
           <div className="divide-y divide-gray-100">
             {timers.map(timer => (
-              <div key={timer.engagementId} className="flex items-center gap-3 px-4 py-3">
+              <div key={timer.engagementId} className={`flex items-center gap-3 px-4 py-3 ${timer.status === 'paused' ? 'bg-gray-50' : ''}`}>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate leading-tight">
-                    {timer.engagementLabel}
-                  </p>
-                  <p className="font-mono text-sm font-bold text-accent tracking-widest mt-0.5">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <p className="text-sm font-medium text-gray-900 truncate leading-tight">
+                      {timer.engagementLabel}
+                    </p>
+                    {timer.status === 'paused' && (
+                      <span className="text-[10px] text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded-full flex-shrink-0">Paused</span>
+                    )}
+                  </div>
+                  <p className={`font-mono text-sm font-bold tracking-widest ${timer.status === 'running' ? 'text-accent' : 'text-gray-400'}`}>
                     {fmt(getTimerElapsed(timer.engagementId))}
                   </p>
                 </div>
-                <button
-                  onClick={() => handleStop(timer)}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors"
-                >
-                  <StopIcon className="w-3 h-3" />
-                  Stop &amp; Log
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => handleToggle(timer)}
+                    title={timer.status === 'running' ? 'Pause' : 'Resume'}
+                    className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                  >
+                    {timer.status === 'running'
+                      ? <PauseIcon className="w-3.5 h-3.5" />
+                      : <PlayIcon className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => handleStop(timer)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    <StopIcon className="w-3 h-3" />
+                    Log
+                  </button>
+                </div>
               </div>
             ))}
           </div>

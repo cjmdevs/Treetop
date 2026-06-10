@@ -18,7 +18,7 @@ const CATEGORIES = [
     reports: [
       { key: 'staff_productivity',   label: 'Staff Productivity',   hasStaffFilter: true, hasClientFilter: true, hasReleaseFilter: true },
       { key: 'time_by_service_code', label: 'Time by Service Code', hasStaffFilter: true, hasClientFilter: true, hasReleaseFilter: true },
-      { key: 'time_by_client',       label: 'Time by Client',       hasStaffFilter: true,                        hasReleaseFilter: true },
+      { key: 'time_by_client',       label: 'Time by Client',       hasStaffFilter: true, hasClientFilter: true, hasReleaseFilter: true },
       { key: 'timesheet',            label: 'Timesheet',            hasStaffFilter: true, periodPicker: true,    hasReleaseFilter: true },
     ],
   },

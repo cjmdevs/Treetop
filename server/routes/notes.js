@@ -5,11 +5,20 @@ const { log } = require('../lib/activityLogger');
 
 router.get('/', (req, res) => {
   const { entity_type, entity_id } = req.query;
-  let q = 'SELECT * FROM notes WHERE 1=1';
+  let q = `
+    SELECT n.*,
+      CASE WHEN n.entity_type = 'client'
+           THEN COALESCE(c.display_name, c.business_name)
+           ELSE NULL
+      END AS client_display_name
+    FROM notes n
+    LEFT JOIN contacts c ON c.id = n.entity_id AND n.entity_type = 'client'
+    WHERE 1=1
+  `;
   const p = [];
-  if (entity_type) { q += ' AND entity_type = ?'; p.push(entity_type); }
-  if (entity_id)   { q += ' AND entity_id = ?';   p.push(entity_id); }
-  q += ' ORDER BY pinned DESC, created_at DESC';
+  if (entity_type) { q += ' AND n.entity_type = ?'; p.push(entity_type); }
+  if (entity_id)   { q += ' AND n.entity_id = ?';   p.push(entity_id); }
+  q += ' ORDER BY n.pinned DESC, n.created_at DESC';
   res.json(db.prepare(q).all(...p));
 });
 
@@ -22,7 +31,7 @@ router.post('/', (req, res) => {
          priority_flag ? 1 : 0, created_by || null, pinned ? 1 : 0);
   const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(r.lastInsertRowid);
   log('note_added', entity_type, entity_id,
-      `Note added: "${note_text.substring(0, 80)}${note_text.length > 80 ? '…' : ''}"`, created_by, req.user.full_name);
+      `Note added: "${note_text.substring(0, 80)}${note_text.length > 80 ? '…' : ''}"`, created_by, req.user.full_name, req.user.id);
   res.status(201).json(note);
 });
 

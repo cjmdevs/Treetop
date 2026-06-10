@@ -10,6 +10,12 @@ function dateRange(req) {
 }
 
 router.get('/', (req, res) => {
+  const role = req.user.role;
+
+  // Reports module is manager+ — staff has no Reports access in the UI or API
+  if (role === 'staff')
+    return res.status(403).json({ error: 'Reports require manager or admin access.' });
+
   const { type, staff, engagementType, releaseFilter, client } = req.query;
   const { start, end } = dateRange(req);
   // client filter: case-insensitive partial match — wrap in % for LIKE queries
@@ -33,6 +39,9 @@ router.get('/', (req, res) => {
   switch (type) {
 
     case 'staff_productivity': {
+      // Exposes all staff members' hours + billable amounts — admin only
+      if (role !== 'admin')
+        return res.status(403).json({ error: 'Admin access required for staff productivity report.' });
       const rows = db.prepare(`
         SELECT staff_member,
           SUM(hours) as total_hours,
@@ -91,9 +100,10 @@ router.get('/', (req, res) => {
         WHERE te.date BETWEEN ? AND ?
           ${staff ? 'AND te.staff_member = ?' : ''}
           ${engagementType ? 'AND e.engagement_type = ?' : ''}
+          ${clientLike ? 'AND LOWER(e.client_name) LIKE LOWER(?)' : ''}
           ${rcAlias}
         GROUP BY e.client_name ORDER BY total_hours DESC
-      `).all(start, end, ...(staff ? [staff] : []), ...(engagementType ? [engagementType] : []));
+      `).all(start, end, ...(staff ? [staff] : []), ...(engagementType ? [engagementType] : []), ...(clientLike ? [clientLike] : []));
       break;
     }
 
@@ -297,7 +307,7 @@ router.get('/', (req, res) => {
     }
 
     case 'unreleased_time': {
-      // Find users with time entries not covered by any time_release record
+      // Find users with unreleased entries within the selected date range
       result = db.prepare(`
         SELECT u.full_name as staff_member, u.id as user_id,
           MIN(te.date) as earliest_date,
@@ -305,7 +315,7 @@ router.get('/', (req, res) => {
           COALESCE(SUM(te.hours), 0) as total_hours
         FROM time_entries te
         JOIN users u ON u.id = te.user_id
-        WHERE te.date < date('now')
+        WHERE te.date BETWEEN ? AND ?
           AND NOT EXISTS (
             SELECT 1 FROM time_releases tr
             WHERE tr.user_id = te.user_id
@@ -314,11 +324,14 @@ router.get('/', (req, res) => {
         GROUP BY u.id
         HAVING total_hours > 0
         ORDER BY u.full_name
-      `).all();
+      `).all(start, end);
       break;
     }
 
     case 'staff_detail': {
+      // Exposes another user's detailed time + billing amounts — admin only
+      if (role !== 'admin')
+        return res.status(403).json({ error: 'Admin access required for staff detail report.' });
       if (!staff) return res.status(400).json({ error: 'staff is required for staff_detail' });
       result = db.prepare(`
         SELECT te.date,

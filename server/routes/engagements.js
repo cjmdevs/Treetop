@@ -102,7 +102,7 @@ router.post('/', (req, res) => {
   const engId = result.lastInsertRowid;
 
   log('engagement_created', 'engagement', engId,
-      `Engagement created: ${client_name} — ${engagement_type}`, null, req.user.full_name);
+      `Engagement created: ${client_name} — ${engagement_type}`, null, req.user.full_name, req.user.id);
 
   if (template_id) {
     const tmplSubtasks = db.prepare(
@@ -144,10 +144,10 @@ router.put('/:id', (req, res) => {
 
   if (status !== prev.status)
     log('status_changed', 'engagement', req.params.id,
-        `Status: "${prev.status}" → "${status}"`, assigned_staff, req.user.full_name);
+        `Status: "${prev.status}" → "${status}"`, assigned_staff, req.user.full_name, req.user.id);
   if (assigned_staff !== prev.assigned_staff)
     log('staff_assigned', 'engagement', req.params.id,
-        `Assigned to ${assigned_staff || '(none)'}`, assigned_staff, req.user.full_name);
+        `Assigned to ${assigned_staff || '(none)'}`, assigned_staff, req.user.full_name, req.user.id);
   runStatusChanged(req.params.id, status, prev.status);
 
   const freq = recurrence_frequency || prev.recurrence_frequency;

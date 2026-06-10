@@ -544,7 +544,15 @@ function NotesActivityTab({ project }) {
                 ) : (
                   <p className="text-sm text-gray-700">{item.description}</p>
                 )}
-                <p className="text-xs text-gray-400 mt-1">{item._time.toLocaleString()}</p>
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                  {item._kind === 'activity' && item.acted_by_initials && (
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent text-white text-[9px] font-bold flex-shrink-0">
+                      {item.acted_by_initials}
+                    </span>
+                  )}
+                  {item._kind === 'activity' && item.acted_by_name ? `${item.acted_by_name} · ` : ''}
+                  {item._time.toLocaleString()}
+                </p>
               </div>
             </div>
           ))}

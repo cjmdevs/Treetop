@@ -10,6 +10,7 @@ import StandaloneLayout     from './components/StandaloneLayout'
 import ServerSetup          from './pages/ServerSetup'
 import Bootstrap            from './pages/Bootstrap'
 import Register             from './pages/Register'
+import RedeemReset          from './pages/RedeemReset'
 import Login                from './pages/Login'
 import Dashboard            from './pages/Dashboard'
 import Engagements          from './pages/Engagements'
@@ -192,7 +193,8 @@ export default function App() {
     <Routes>
       <Route path="/server-setup" element={<ServerSetup />} />
       <Route path="/bootstrap"    element={<Bootstrap />} />
-      <Route path="/register"     element={<Register />} />
+      <Route path="/register"       element={<Register />} />
+      <Route path="/reset-password" element={<RedeemReset />} />
       <Route path="*"             element={<AppGuard />} />
     </Routes>
   )

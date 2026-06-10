@@ -90,7 +90,7 @@ router.post('/', (req, res) => {
 
   const entry = db.prepare('SELECT * FROM time_entries WHERE id = ?').get(result.lastInsertRowid);
   log('time_entry_added', 'engagement', engagement_id,
-      `${hours}h logged by ${staff_member}`, staff_member, req.user.full_name);
+      `${hours}h logged by ${staff_member}`, staff_member, req.user.full_name, req.user.id);
   runBudgetCheck(engagement_id);
   res.status(201).json(entry);
 });

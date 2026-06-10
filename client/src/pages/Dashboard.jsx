@@ -190,7 +190,12 @@ function ActivityList({ items }) {
           <span className="text-sm flex-shrink-0 leading-none mt-0.5">{EVENT_ICONS[a.event_type] || '•'}</span>
           <div>
             <p className="text-xs text-gray-700 leading-snug">{a.description}</p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              {a.acted_by_initials && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent text-white text-[9px] font-bold flex-shrink-0">
+                  {a.acted_by_initials}
+                </span>
+              )}
               {a.acted_by_name ? `${a.acted_by_name} · ` : ''}
               {new Date(a.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </p>

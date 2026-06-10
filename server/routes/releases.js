@@ -2,6 +2,7 @@ const express = require('express');
 const db      = require('../db/database');
 const router  = express.Router();
 const { autoBillReleasedEntries } = require('../lib/autoBilling');
+const { log } = require('../lib/activityLogger');
 
 // GET /api/releases — staff sees own, admin/manager sees all
 router.get('/', (req, res) => {
@@ -95,6 +96,10 @@ router.post('/', (req, res) => {
     billableEntries.map(e => e.id),
     end_date
   );
+
+  log('time_released', 'user', req.user.id,
+    `Time released: ${start_date} – ${end_date} (${totals.total_hours.toFixed(2)} hrs)`,
+    req.user.full_name, req.user.full_name, req.user.id);
 
   res.status(201).json({ ...release, autoBilling });
 });

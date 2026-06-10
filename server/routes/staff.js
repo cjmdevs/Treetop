@@ -2,6 +2,12 @@ const express = require('express');
 const db = require('../db/database');
 const router = express.Router();
 
+function requireAdmin(req, res, next) {
+  if (req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Admin access required.' });
+  next();
+}
+
 router.get('/', (req, res) => {
   const rows = db.prepare(
     'SELECT DISTINCT assigned_staff AS name FROM engagements WHERE assigned_staff IS NOT NULL ORDER BY assigned_staff'
@@ -10,7 +16,8 @@ router.get('/', (req, res) => {
 });
 
 // /dashboard must be declared before any /:param routes
-router.get('/dashboard', (req, res) => {
+// Admin only — exposes all staff members' hours and workload (other-users' time)
+router.get('/dashboard', requireAdmin, (req, res) => {
   const staffRows = db.prepare(
     'SELECT DISTINCT assigned_staff AS name FROM engagements WHERE assigned_staff IS NOT NULL'
   ).all();
@@ -38,7 +45,8 @@ router.get('/dashboard', (req, res) => {
 });
 
 // /detail/:name must be declared before any generic /:param routes
-router.get('/detail/:name', (req, res) => {
+// Admin only — exposes another user's hours, billable amounts, trend, and client breakdown
+router.get('/detail/:name', requireAdmin, (req, res) => {
   const name = req.params.name;
   const now = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;

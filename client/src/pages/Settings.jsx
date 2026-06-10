@@ -8,6 +8,7 @@ import { contactClientTypesApi } from '../api/contactClientTypes'
 import { projectStatusesApi }    from '../api/projectStatuses'
 import { useAuth }               from '../context/AuthContext'
 import { useStatuses }           from '../context/StatusesContext'
+import { useToast }              from '../context/ToastContext'
 import { TrashIcon, PencilIcon, MagnifyingGlassIcon, SwatchIcon, WifiIcon, CheckCircleIcon, ExclamationTriangleIcon, ClipboardDocumentIcon, KeyIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { getServerUrl, setServerUrl, testConnection, normalizeUrl } from '../config/serverConfig'
 import { inviteKeysApi }    from '../api/inviteKeys'
@@ -33,7 +34,7 @@ const BLANK_RULE = {
 
 const BLANK_USER = {
   username: '', password: '', full_name: '', email: '',
-  role: 'staff', default_hourly_rate: '', rate_effective_date: '',
+  role: 'staff', default_hourly_rate: '', rate_effective_date: '', initials: '',
 }
 
 const BLANK_CT = { code: '', label: '', sort_order: '' }
@@ -120,6 +121,7 @@ export default function Settings() {
   const [tab, setTab] = useState('statuses')
   const { isAdmin } = useAuth()
   const { refresh: refreshStatuses } = useStatuses()
+  const toast = useToast()
 
   // ── Custom fields ──────────────────────────────────────────────────────────
   const [fields,       setFields]       = useState([])
@@ -149,10 +151,11 @@ export default function Settings() {
   const [ctError,      setCtError]      = useState('')
 
   // ── User accounts ──────────────────────────────────────────────────────────
-  const [users,      setUsers]      = useState([])
-  const [userForm,   setUserForm]   = useState(null)  // null=closed; {...}=open
-  const [userSaving, setUserSaving] = useState(false)
-  const [userError,  setUserError]  = useState('')
+  const [users,        setUsers]        = useState([])
+  const [userForm,     setUserForm]     = useState(null)  // null=closed; {...}=open
+  const [userSaving,   setUserSaving]   = useState(false)
+  const [userError,    setUserError]    = useState('')
+  const [resetKeyData, setResetKeyData] = useState(null)  // { key, user } — shown in modal
 
   // ── Project statuses ───────────────────────────────────────────────────────
   const [psRows,       setPsRows]       = useState([])
@@ -175,7 +178,12 @@ export default function Settings() {
   const saveFirm = async e => {
     e.preventDefault()
     setFirmSaving(true)
-    try { await firmSettingsApi.update(firmForm) } finally { setFirmSaving(false) }
+    try {
+      await firmSettingsApi.update(firmForm)
+      toast.success('Firm branding saved.')
+    } catch {
+      toast.error('Failed to save firm branding.')
+    } finally { setFirmSaving(false) }
   }
 
   // ── Invite keys ────────────────────────────────────────────────────────────
@@ -324,13 +332,13 @@ export default function Settings() {
         ...rateForm,
         hourly_rate: parseFloat(rateForm.hourly_rate),
       })
-      setEditingRate(null); setRateForm(BLANK_RATE); loadRates()
+      setEditingRate(null); setRateForm(BLANK_RATE); await loadRates()
     } finally { setSaving(false) }
   }
 
   const deleteRate = async id => {
     if (!confirm('Delete this staff rate?')) return
-    await staffRatesApi.delete(id); loadRates()
+    await staffRatesApi.delete(id); await loadRates()
   }
 
   const saveRule = async e => {
@@ -1076,7 +1084,7 @@ export default function Settings() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {['Name','Username','Role','Rate','Status',''].map(h => (
+                  {['Name','Username','Role','Initials','Rate','Status',''].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -1093,6 +1101,7 @@ export default function Settings() {
                                                'bg-gray-100 text-gray-700'
                       }`}>{u.role}</span>
                     </td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{u.initials || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">${u.default_hourly_rate}/hr</td>
                     <td className="px-4 py-3">
                       <button
@@ -1107,17 +1116,30 @@ export default function Settings() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => { setUserForm({ ...u, password: '' }); setUserError('') }}
-                        className="text-xs text-accent hover:underline"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const data = await usersApi.generateResetKey(u.id)
+                              setResetKeyData(data)
+                            } catch (e) { toast.error(e.message || 'Failed to generate reset key') }
+                          }}
+                          className="text-xs text-gray-400 hover:text-gray-700"
+                        >
+                          Reset Password
+                        </button>
+                        <button
+                          onClick={() => { setUserForm({ ...u, password: '' }); setUserError('') }}
+                          className="text-xs text-accent hover:underline"
+                        >
+                          Edit
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {users.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">No users found.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">No users found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1138,7 +1160,8 @@ export default function Settings() {
                 {[
                   { label: 'Full Name',       key: 'full_name',           type: 'text' },
                   { label: 'Username',        key: 'username',            type: 'text' },
-                  { label: 'Password',        key: 'password',            type: 'password', placeholder: userForm.id ? 'Leave blank to keep' : '' },
+                  ...(!userForm.id ? [{ label: 'Password', key: 'password', type: 'password', placeholder: '' }] : []),
+                  { label: 'Initials',        key: 'initials',            type: 'text' },
                   { label: 'Email',           key: 'email',               type: 'email' },
                   { label: 'Hourly Rate ($)', key: 'default_hourly_rate', type: 'number' },
                   { label: 'Rate Effective',  key: 'rate_effective_date', type: 'date' },
@@ -1192,6 +1215,31 @@ export default function Settings() {
                   className="px-4 py-1.5 border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Reset key modal */}
+          {resetKeyData && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-8 w-full max-w-md mx-4">
+                <h3 className="text-base font-bold text-gray-900 mb-1">Password Reset Key</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Share this key with <span className="font-semibold">{resetKeyData.user?.full_name}</span>.
+                  It cannot be retrieved again.
+                </p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 font-mono text-sm text-gray-900 break-all mb-3 select-all">
+                  {resetKeyData.key}
+                </div>
+                <p className="text-xs text-gray-400 mb-5">
+                  The user goes to <span className="font-mono bg-gray-100 px-1 rounded">/reset-password</span> and enters this key with their new password.
+                </p>
+                <button
+                  onClick={() => setResetKeyData(null)}
+                  className="w-full py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark transition-colors"
+                >
+                  Done
                 </button>
               </div>
             </div>

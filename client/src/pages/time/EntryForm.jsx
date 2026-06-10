@@ -77,6 +77,8 @@ const BLANK = (rate) => ({
 
 export default function EntryForm({
   prefill,
+  editing,      // time entry object to edit; when set, form is in edit mode
+  onCancel,     // called when user clicks Cancel in edit mode
   engagements = [],
   serviceCodes = [],
   onSaved,
@@ -88,16 +90,34 @@ export default function EntryForm({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
 
-  // Apply prefill when a timer stops and pre-fills the form
+  // Populate form when entering edit mode
   useEffect(() => {
-    if (prefill) {
+    if (editing) {
+      setForm({
+        date:          editing.date || TODAY(),
+        engagement_id: String(editing.engagement_id || ''),
+        service_code:  editing.service_code || '',
+        hours:         String(editing.hours || ''),
+        billing_rate:  editing.billing_rate != null ? String(editing.billing_rate) : '',
+        notes:         editing.notes || '',
+        billable:      editing.billable ?? true,
+        internal_memo: editing.internal_memo ?? false,
+      })
+    } else {
+      setForm(BLANK(defaultRate))
+    }
+  }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply prefill when a timer stops and pre-fills the form (create mode only)
+  useEffect(() => {
+    if (prefill && !editing) {
       setForm(f => ({
         ...f,
         engagement_id: String(prefill.engagementId || ''),
         hours:         String(prefill.hours || ''),
       }))
     }
-  }, [prefill])
+  }, [prefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -110,18 +130,35 @@ export default function EntryForm({
     if (!form.engagement_id || !form.hours) return
     setSaving(true)
     try {
-      await timeEntriesApi.create({
-        engagement_id: parseInt(form.engagement_id),
-        date:          form.date,
-        hours:         parseFloat(form.hours),
-        billing_rate:  form.billing_rate ? parseFloat(form.billing_rate) : null,
-        notes:         form.notes || null,
-        billable:      form.billable,
-        service_code:  form.service_code || null,
-        internal_memo: form.internal_memo,
-        entry_status:  'draft',
-      })
-      setForm(BLANK(defaultRate))
+      if (editing) {
+        // Edit mode: update the existing entry, preserving status and staff_member
+        await timeEntriesApi.update(editing.id, {
+          engagement_id: parseInt(form.engagement_id),
+          date:          form.date,
+          hours:         parseFloat(form.hours),
+          billing_rate:  form.billing_rate ? parseFloat(form.billing_rate) : null,
+          notes:         form.notes || null,
+          billable:      form.billable,
+          service_code:  form.service_code || null,
+          internal_memo: form.internal_memo,
+          entry_status:  editing.entry_status,  // preserve — never escalate via edit
+          staff_member:  editing.staff_member,  // preserve assigned staff
+        })
+      } else {
+        // Create mode
+        await timeEntriesApi.create({
+          engagement_id: parseInt(form.engagement_id),
+          date:          form.date,
+          hours:         parseFloat(form.hours),
+          billing_rate:  form.billing_rate ? parseFloat(form.billing_rate) : null,
+          notes:         form.notes || null,
+          billable:      form.billable,
+          service_code:  form.service_code || null,
+          internal_memo: form.internal_memo,
+          entry_status:  'draft',
+        })
+        setForm(BLANK(defaultRate))
+      }
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
       onSaved?.()
@@ -148,7 +185,19 @@ export default function EntryForm({
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className={`bg-white rounded-xl border p-5 ${editing ? 'border-accent/40 ring-1 ring-accent/20' : 'border-gray-200'}`}>
+      {editing && (
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold text-accent uppercase tracking-wide">Editing Entry</span>
+          <button
+            type="button"
+            onClick={() => { setForm(BLANK(defaultRate)); onCancel?.() }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            ✕ Cancel
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         {/* Row 1: date + engagement + service code */}
         <div className="grid grid-cols-12 gap-3 mb-3">
@@ -244,7 +293,7 @@ export default function EntryForm({
               disabled={saving || !form.engagement_id || !form.hours}
               className="w-full py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
             >
-              {saved ? <><CheckIcon className="w-4 h-4" /> Saved</> : saving ? 'Saving…' : 'Save'}
+              {saved ? <><CheckIcon className="w-4 h-4" /> Saved</> : saving ? 'Saving…' : editing ? 'Update' : 'Save'}
             </button>
           </div>
         </div>

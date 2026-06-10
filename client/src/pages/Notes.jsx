@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { notesApi } from '../api/notes'
+import { contactsApi } from '../api/contacts'
 
 const CATS = ['All', 'General', 'Tax', 'Client', 'Internal', 'Billing']
 const ENTITY_TYPES = ['All', 'engagement', 'client', 'staff']
@@ -14,17 +15,71 @@ export default function Notes() {
   const [form, setForm] = useState(BLANK)
   const [saving, setSaving] = useState(false)
 
+  // Client picker state
+  const [clientQuery, setClientQuery]           = useState('')
+  const [clientResults, setClientResults]       = useState([])
+  const [clientPickerOpen, setClientPickerOpen] = useState(false)
+  const [selectedClient, setSelectedClient]     = useState(null)
+  const debounceRef = useRef(null)
+  const pickerRef   = useRef(null)
+
   const load = () => notesApi.list().then(setNotes)
   useEffect(() => { load() }, [])
 
+  // Debounced contact search when entity_type is 'client'
+  useEffect(() => {
+    if (form.entity_type !== 'client') { setClientResults([]); setClientPickerOpen(false); return }
+    if (clientQuery.length < 2) { setClientResults([]); setClientPickerOpen(false); return }
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      contactsApi.list({ search: clientQuery }).then(data => {
+        setClientResults(data.slice(0, 8))
+        setClientPickerOpen(data.length > 0)
+      }).catch(() => {})
+    }, 250)
+  }, [clientQuery, form.entity_type])
+
+  // Close picker on outside click
+  useEffect(() => {
+    const handler = e => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setClientPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const set = field => e => setForm(f => ({ ...f, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
+
+  const handleEntityTypeChange = e => {
+    setForm(f => ({ ...f, entity_type: e.target.value, entity_id: '' }))
+    setClientQuery('')
+    setSelectedClient(null)
+    setClientResults([])
+    setClientPickerOpen(false)
+  }
+
+  const pickClient = contact => {
+    const name = contact.display_name || contact.business_name || `Contact #${contact.id}`
+    setSelectedClient({ id: contact.id, name })
+    setForm(f => ({ ...f, entity_id: contact.id }))
+    setClientQuery(name)
+    setClientResults([])
+    setClientPickerOpen(false)
+  }
 
   const handleSubmit = async e => {
     e.preventDefault()
     setSaving(true)
     try {
-      await notesApi.create({ ...form, entity_id: parseInt(form.entity_id) || 0 })
+      await notesApi.create({
+        ...form,
+        entity_id: form.entity_type === 'client'
+          ? (selectedClient?.id || 0)
+          : (parseInt(form.entity_id) || 0),
+      })
       setForm(BLANK)
+      setClientQuery('')
+      setSelectedClient(null)
       setShowForm(false)
       load()
     } finally { setSaving(false) }
@@ -63,13 +118,45 @@ export default function Notes() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
-                <select value={form.entity_type} onChange={set('entity_type')} className={`w-full ${inputCls}`}>
+                <select value={form.entity_type} onChange={handleEntityTypeChange} className={`w-full ${inputCls}`}>
                   {['engagement', 'client', 'staff'].map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Entity ID</label>
-                <input type="number" value={form.entity_id} onChange={set('entity_id')} className={`w-full ${inputCls}`} placeholder="e.g. 1" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {form.entity_type === 'client' ? 'Client' : 'Entity ID'}
+                </label>
+                {form.entity_type === 'client' ? (
+                  <div ref={pickerRef} className="relative">
+                    <input
+                      value={clientQuery}
+                      onChange={e => {
+                        setClientQuery(e.target.value)
+                        setSelectedClient(null)
+                        setForm(f => ({ ...f, entity_id: '' }))
+                      }}
+                      onFocus={() => clientResults.length > 0 && setClientPickerOpen(true)}
+                      placeholder="Search client name…"
+                      className={`w-full ${inputCls}`}
+                      autoComplete="off"
+                    />
+                    {clientPickerOpen && clientResults.length > 0 && (
+                      <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-auto max-h-48 text-sm">
+                        {clientResults.map(c => (
+                          <li key={c.id}
+                            onMouseDown={() => pickClient(c)}
+                            className="px-3 py-2 hover:bg-accent-light cursor-pointer text-gray-800 truncate"
+                          >
+                            {c.display_name || c.business_name}
+                            {c.client_code && <span className="ml-1.5 text-xs text-gray-400">{c.client_code}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <input type="number" value={form.entity_id} onChange={set('entity_id')} className={`w-full ${inputCls}`} placeholder="e.g. 1" />
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -92,7 +179,7 @@ export default function Notes() {
                 </label>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
+                <button type="button" onClick={() => { setShowForm(false); setClientQuery(''); setSelectedClient(null) }} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
                 <button type="submit" disabled={saving} className="px-6 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-dark disabled:opacity-50">
                   {saving ? 'Saving...' : 'Save Note'}
                 </button>
@@ -126,7 +213,11 @@ export default function Notes() {
                 <p className="text-gray-800 text-sm leading-relaxed">{n.note_text}</p>
                 <div className="flex items-center gap-3 mt-2">
                   <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">{n.category}</span>
-                  <span className="text-xs text-gray-400 capitalize">{n.entity_type} #{n.entity_id}</span>
+                  <span className="text-xs text-gray-400 capitalize">
+                    {n.entity_type === 'client' && n.client_display_name
+                      ? n.client_display_name
+                      : `${n.entity_type} #${n.entity_id}`}
+                  </span>
                   {n.created_by && <span className="text-xs text-gray-400">{n.created_by}</span>}
                   <span className="text-xs text-gray-300">{new Date(n.created_at).toLocaleDateString()}</span>
                   {n.pinned && <span className="text-xs text-amber-500">📌 Pinned</span>}

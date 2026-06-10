@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { paymentsApi }  from '../api/payments'
-import { billingApi }   from '../api/billing'
-import { useToast }     from '../context/ToastContext'
-import StatCard         from '../components/StatCard'
+import { useEffect, useRef, useState } from 'react'
+import { paymentsApi }    from '../api/payments'
+import { billingApi }     from '../api/billing'
+import { engagementsApi } from '../api/engagements'
+import { useToast }       from '../context/ToastContext'
+import StatCard           from '../components/StatCard'
 import { BillingStatusBadge } from '../components/Badge'
 
 const METHODS = ['Check', 'ACH', 'Credit Card', 'Wire', 'Cash', 'Other']
@@ -31,8 +32,64 @@ const TABS = [
   { id: 'paid',        label: 'Paid' },
 ]
 
+// Debounced server-side client name autocomplete — prevents free-text typos
+function ClientSearch({ value, onChange, inputCls }) {
+  const [query,   setQuery]   = useState(value)
+  const [results, setResults] = useState([])
+  const [open,    setOpen]    = useState(false)
+  const timer = useRef(null)
+
+  const onInput = e => {
+    const q = e.target.value
+    setQuery(q)
+    onChange(q)
+    setOpen(true)
+    clearTimeout(timer.current)
+    if (q.length < 1) { setResults([]); return }
+    timer.current = setTimeout(() => {
+      engagementsApi.clientNames(q)
+        .then(data => setResults(data.names || []))
+        .catch(() => {})
+    }, 200)
+  }
+
+  const pick = name => {
+    setQuery(name)
+    onChange(name)
+    setResults([])
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        required
+        value={query}
+        onChange={onInput}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={() => { if (query.length > 0) setOpen(true) }}
+        className={inputCls}
+        placeholder="Search client name…"
+        autoComplete="off"
+      />
+      {open && results.length > 0 && (
+        <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-auto max-h-48 text-sm">
+          {results.map(name => (
+            <li key={name}
+              onMouseDown={() => pick(name)}
+              className="px-3 py-2 hover:bg-accent-light cursor-pointer text-gray-800 truncate"
+            >
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function AR() {
-  const { toast }  = useToast()
+  const toast = useToast()
 
   const [aging,        setAging]       = useState(null)   // { buckets, records } — unpaid only
   const [ledger,       setLedger]      = useState([])     // ALL billing records
@@ -143,7 +200,11 @@ export default function AR() {
           <form onSubmit={handlePaySubmit} className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Client Name *</label>
-              <input required value={payForm.client_name} onChange={setPayField('client_name')} className={inputCls} placeholder="Client name" />
+              <ClientSearch
+                value={payForm.client_name}
+                onChange={name => setPayForm(v => ({ ...v, client_name: name }))}
+                inputCls={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Amount *</label>

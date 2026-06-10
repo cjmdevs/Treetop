@@ -3,6 +3,15 @@ const db = require('../db/database');
 const router = express.Router();
 const { log } = require('../lib/activityLogger');
 
+function requireManagerOrAdmin(req, res, next) {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Manager or admin access required.' });
+  next();
+}
+
+// Entire payments / AR module is manager+ — staff has no AR access
+router.use(requireManagerOrAdmin);
+
 router.get('/aging', (req, res) => {
   const unpaid = db.prepare(`
     SELECT b.*, e.client_name, e.engagement_type
@@ -33,15 +42,18 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { client_name, amount, payment_date, payment_method, reference_number, notes } = req.body;
+  const { client_name, amount, payment_date, payment_method, reference_number, notes, billing_record_id } = req.body;
   const r = db.prepare(`
-    INSERT INTO payments (client_name, amount, payment_date, payment_method, reference_number, notes)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(client_name, parseFloat(amount), payment_date,
-         payment_method || 'Check', reference_number || null, notes || null);
+    INSERT INTO payments (client_name, amount, payment_date, payment_method, reference_number, notes, billing_record_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    client_name, parseFloat(amount), payment_date,
+    payment_method || 'Check', reference_number || null, notes || null,
+    billing_record_id ? parseInt(billing_record_id, 10) : null,
+  );
   const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(r.lastInsertRowid);
   log('payment_received', 'payment', r.lastInsertRowid,
-      `Payment received: $${amount} from ${client_name} (${payment_method || 'Check'})`, null, req.user.full_name);
+      `Payment received: $${amount} from ${client_name} (${payment_method || 'Check'})`, null, req.user.full_name, req.user.id);
   res.status(201).json(payment);
 });
 

@@ -320,6 +320,12 @@ function migrate() {
     `);
   }
 
+  // billing_record_id on payments — stable FK link for AR reconciliation (added 2026-06-09)
+  // Optional: links a payment to the specific billing record it covers. NULL = unlinked / general payment.
+  const paymentCols = db.prepare('PRAGMA table_info(payments)').all().map(c => c.name);
+  if (!paymentCols.includes('billing_record_id'))
+    db.exec('ALTER TABLE payments ADD COLUMN billing_record_id INTEGER REFERENCES billing_records(id) ON DELETE SET NULL');
+
   // pay_period_user_status table (added 2026-05-21)
   const ppusTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pay_period_user_status'").get();
   if (!ppusTable) {
@@ -336,6 +342,41 @@ function migrate() {
       )
     `);
   }
+
+  // password_reset_keys table (added 2026-06-10 phase-C2)
+  const prkTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='password_reset_keys'").get();
+  if (!prkTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS password_reset_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_hash TEXT NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_by INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        redeemed_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )
+    `);
+  }
+
+  // initials on users (added 2026-06-10 phase-C4)
+  const userColsC4 = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!userColsC4.includes('initials')) {
+    db.exec('ALTER TABLE users ADD COLUMN initials TEXT');
+    const usersToFill = db.prepare('SELECT id, full_name FROM users').all();
+    const updInitials = db.prepare('UPDATE users SET initials = ? WHERE id = ?');
+    for (const u of usersToFill) {
+      const parts = (u.full_name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+      updInitials.run(parts.map(w => w[0].toUpperCase()).join(''), u.id);
+    }
+  }
+
+  // acted_by_initials on activity_log (added 2026-06-10 phase-C4)
+  const actLogColsC4 = db.prepare('PRAGMA table_info(activity_log)').all().map(c => c.name);
+  if (!actLogColsC4.includes('acted_by_initials'))
+    db.exec('ALTER TABLE activity_log ADD COLUMN acted_by_initials TEXT');
 }
 
 module.exports = { migrate };

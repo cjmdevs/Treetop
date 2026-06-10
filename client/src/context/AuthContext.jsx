@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { authApi } from '../api/auth'
+import { clearAllTimers } from './TimerContext'
 
 const AuthContext = createContext(null)
 
@@ -26,6 +27,7 @@ export function AuthProvider({ children }) {
     if (!window.__treetop__?.isElectron) return
 
     const cleanup = window.__treetop__.onForceLogout(() => {
+      clearAllTimers()
       localStorage.removeItem('treetop_auth_token')
       setUser(null)
       // Hash-only redirect — safe under file:// (see client.js comment)
@@ -52,6 +54,7 @@ export function AuthProvider({ children }) {
   //
   // Browser: __treetop__ doesn't exist — the guard makes the Electron call a no-op.
   const logout = useCallback(() => {
+    clearAllTimers()
     localStorage.removeItem('treetop_auth_token')
     setUser(null)
     if (window.__treetop__?.isElectron) {

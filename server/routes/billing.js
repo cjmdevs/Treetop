@@ -4,6 +4,15 @@ const router = express.Router();
 const { log } = require('../lib/activityLogger');
 const { claimEntriesForBillingRecord } = require('../lib/autoBilling');
 
+function requireManagerOrAdmin(req, res, next) {
+  if (req.user.role !== 'admin' && req.user.role !== 'manager')
+    return res.status(403).json({ error: 'Manager or admin access required.' });
+  next();
+}
+
+// Entire billing module is manager+ — staff has no Billing access
+router.use(requireManagerOrAdmin);
+
 // /summary must be declared before /:id so Express doesn't treat "summary" as an ID
 router.get('/summary', (req, res) => {
   const row = db.prepare(`
@@ -55,7 +64,7 @@ router.post('/', (req, res) => {
   })();
 
   log('billing_created', 'engagement', engagement_id,
-      `Billing record created: $${invoice_amount} (${status || 'Unbilled'})`, null, req.user.full_name);
+      `Billing record created: $${invoice_amount} (${status || 'Unbilled'})`, null, req.user.full_name, req.user.id);
   res.status(201).json(record);
 });
 
@@ -70,7 +79,7 @@ router.put('/:id', (req, res) => {
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
   if (prevRecord && status !== prevRecord.status)
     log('billing_updated', 'engagement', engagement_id,
-        `Invoice status: "${prevRecord.status}" → "${status}"`, null, req.user.full_name);
+        `Invoice status: "${prevRecord.status}" → "${status}"`, null, req.user.full_name, req.user.id);
   res.json(db.prepare('SELECT * FROM billing_records WHERE id = ?').get(req.params.id));
 });
 
